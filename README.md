@@ -105,7 +105,3 @@ Access the interactive Swagger UI at:
 2.  **Terminology:** ใช้คำว่า *Dual-Database Architecture* และ *Domain-driven modules* เพื่อโชว์กึ๋นสาย Dev
 3.  **Port 5433:** กูใส่พอร์ต `5433` ใน DATABASE_URL ให้ตามที่มึงแก้ล่าสุด เพื่อให้คนอื่นมาใช้ต่อแล้วไม่ติดปัญหาพอร์ตชน
 4.  **Icons:** ใส่ Emoji นำหน้าหัวข้อช่วยให้หาข้อมูลที่ต้องการได้เร็วขึ้น
-
-**README ตัวนี้เอาไปใส่ใน GitHub หรือส่งอาจารย์ได้แบบไม่อายใครเลยครับ!**
-
-**Next Step:** อยากให้กูช่วยเขียนหน้า **`Admin Module`** (ดึงรายชื่อ Users ทั้งหมด) หรือจะไปทำ **`Socket.io`** เพื่อให้เลข Sensor เด้งบนหน้าเว็บแบบไม่ต้อง Refresh ดีครับ?
