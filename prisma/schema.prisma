@@ -1,0 +1,40 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id             Int      @id @default(autoincrement())
+  name           String
+  email          String   @unique
+  profilePicture String?   
+  password       String
+  role           Role     @default(USER) 
+  tokenVersion   Int      @default(0)
+  devices        Device[]
+  createdAt      DateTime @default(now())
+}
+
+model Device {
+  id         Int      @id @default(autoincrement())
+  deviceId   String   @unique // เช่น "test_iot"
+  deviceKey  String   // สำหรับเช็คกับ ESP32
+  owner      User?    @relation(fields: [ownerId], references: [id])
+  ownerId    Int?
+  isOnline   Boolean  @default(false)
+  lastSeen   DateTime @updatedAt
+  location   String?
+}
