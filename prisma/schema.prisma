@@ -16,6 +16,12 @@ enum Role {
   ADMIN
 }
 
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
 model User {
   id             Int      @id @default(autoincrement())
   name           String
@@ -29,12 +35,69 @@ model User {
 }
 
 model Device {
-  id         Int      @id @default(autoincrement())
-  deviceId   String   @unique // เช่น "test_iot"
-  deviceKey  String   // สำหรับเช็คกับ ESP32
-  owner      User?    @relation(fields: [ownerId], references: [id])
-  ownerId    Int?
-  isOnline   Boolean  @default(false)
-  lastSeen   DateTime @updatedAt
-  location   String?
+  id          Int      @id @default(autoincrement())
+  deviceId    String   @unique
+  deviceKey   String
+
+  name        String?
+  model       String?
+  firmware    String?
+
+  owner       User?    @relation(fields: [ownerId], references: [id])
+  ownerId     Int?
+
+  isOnline    Boolean  @default(false)
+  lastSeen    DateTime @updatedAt
+
+  latitude    Float?
+  longitude   Float?
+
+  sensors     DeviceSensor[]
+  logs        DeviceLog[]   // 👈 เพิ่มตรงนี้
+
+  createdAt   DateTime @default(now())
+
+  @@index([deviceId])
+}
+
+model Sensor {
+  id        Int    @id @default(autoincrement())
+  name      String @unique  // temperature, humidity
+  unit      String // °C, %, hPa
+
+  model     String? // เช่น DHT22, BMP280
+  brand     String? // เช่น Bosch
+
+  devices   DeviceSensor[]
+}
+
+model DeviceSensor {
+  id        Int     @id @default(autoincrement())
+
+  device    Device  @relation(fields: [deviceId], references: [id])
+  deviceId  Int
+
+  sensor    Sensor  @relation(fields: [sensorId], references: [id])
+  sensorId  Int
+
+  alias     String? // ชื่อเล่น 
+
+  @@unique([deviceId, sensorId])
+}
+
+model DeviceLog {
+  id        Int      @id @default(autoincrement())
+
+  device    Device   @relation(fields: [deviceId], references: [id])
+  deviceId  Int
+
+  level     LogLevel
+  message   String
+
+  meta      Json?
+
+  createdAt DateTime  @default(now())
+
+  @@index([deviceId])
+  @@index([createdAt])
 }
