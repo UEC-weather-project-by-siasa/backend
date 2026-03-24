@@ -4,13 +4,14 @@ const { getIO } = require('../socket/socket');
 const prisma = require('../config/db');
 
 // ─────────────────────────────────────────────
-// Cache sensor mapping (ลด DB query)
-// deviceId → Set(sensorName)
+// Cache
 // ─────────────────────────────────────────────
 const sensorCache = new Map();
 const deviceCache = new Map();
 
-// โหลด sensor mapping จาก DB
+// ─────────────────────────────────────────────
+// โหลด sensor mapping
+// ─────────────────────────────────────────────
 const loadDeviceSensors = async (deviceId) => {
   const mappings = await prisma.deviceSensor.findMany({
     where: {
@@ -35,14 +36,23 @@ const updateDeviceOnline = async (deviceId, isOnline) => {
     const cached = deviceCache.get(deviceId);
     const now = Date.now();
 
-    if (!cached || now - cached.lastUpdate > 30000 || cached.isOnline !== isOnline) {
-      await prisma.device.updateMany({
-        where: { deviceId },
-        data: { isOnline, lastSeen: new Date() },
-      });
+    // update cache
+    deviceCache.set(deviceId, {
+      lastUpdate: now,
+      isOnline
+    });
 
-      deviceCache.set(deviceId, { lastUpdate: now, isOnline });
-    }
+    // update DB
+    await prisma.device.updateMany({
+      where: { deviceId },
+      data: {
+        isOnline,
+        lastSeen: new Date()
+      }
+    });
+
+    console.log(`${isOnline ? '🟢' : '🔴'} Device ${deviceId} → ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+
   } catch (err) {
     console.error(`❌ DB update failed for ${deviceId}:`, err.message);
   }
@@ -73,60 +83,56 @@ const logToDevice = async (deviceId, level, message, meta = null) => {
 };
 
 // ─────────────────────────────────────────────
+// HEARTBEAT MONITOR
+// ─────────────────────────────────────────────
+const startHeartbeatMonitor = () => {
+  setInterval(async () => {
+    const now = Date.now();
+
+    for (const [deviceId, cached] of deviceCache.entries()) {
+
+      // 60 วิ ไม่ส่งข้อมูล = offline
+      if (now - cached.lastUpdate > 60000 && cached.isOnline) {
+
+        await updateDeviceOnline(deviceId, false);
+
+        await logToDevice(
+          deviceId,
+          'WARN',
+          'Device timeout (no data)'
+        );
+
+        const io = getIO();
+
+        io.emit(`device:status:${deviceId}`, {
+          deviceId,
+          isOnline: false
+        });
+
+        io.emit('device:status:all', {
+          deviceId,
+          isOnline: false
+        });
+
+        console.log(`⚠️ Device timeout: ${deviceId}`);
+      }
+    }
+
+  }, 30000); // check ทุก 30 วิ
+};
+
+// ─────────────────────────────────────────────
 // MAIN HANDLER
 // ─────────────────────────────────────────────
 const handleMessages = () => {
+
+  startHeartbeatMonitor();
+
   client.on('message', async (topic, message) => {
     const io = getIO();
 
-    // ───────── sensor/{deviceId}/{sensorName} ─────────
-    if (topic.startsWith('sensor/')) {
-      const parts = topic.split('/');
-      if (parts.length !== 3) return;
-
-      const [, deviceId, sensorName] = parts;
-
-      let value;
-
-      try {
-        value = parseFloat(message.toString());
-      } catch {
-        console.warn(`⚠️ Invalid value on topic: ${topic}`);
-        return;
-      }
-
-      // โหลด sensor จาก cache / DB
-      let sensors = sensorCache.get(deviceId);
-      if (!sensors) {
-        sensors = await loadDeviceSensors(deviceId);
-      }
-
-      // ❌ sensor ไม่ได้ register ใน DB → ignore
-      if (!sensors.has(sensorName)) {
-        console.warn(`⚠️ Unknown sensor "${sensorName}" for device ${deviceId}`);
-        return;
-      }
-
-      // ───────── InfluxDB ─────────
-      const point = new Point('sensor_reading')
-        .tag('device_id', deviceId)
-        .tag('sensor', sensorName)
-        .floatField('value', value);
-
-      writeApi.writePoint(point);
-
-      // ───────── Update status ─────────
-      await updateDeviceOnline(deviceId, true);
-
-      // ───────── realtime ─────────
-      io.emit(`sensor:${deviceId}`, { sensor: sensorName, value });
-      io.emit('sensor:all', { deviceId, sensor: sensorName, value });
-
-      console.log(`📊 [${deviceId}] ${sensorName} = ${value}`);
-    }
-
     // ───────── device/{deviceId}/data ─────────
-    else if (topic.startsWith('device/') && topic.endsWith('/data')) {
+    if (topic.startsWith('device/') && topic.endsWith('/data')) {
       const deviceId = topic.split('/')[1];
 
       let payload;
@@ -140,13 +146,11 @@ const handleMessages = () => {
 
       const sensorsPayload = payload.sensors || {};
 
-      // โหลด sensor mappin
       let sensors = sensorCache.get(deviceId);
       if (!sensors) {
         sensors = await loadDeviceSensors(deviceId);
       }
 
-      // loop sensors
       for (const [sensorName, value] of Object.entries(sensorsPayload)) {
 
         if (!sensors.has(sensorName)) {
@@ -172,11 +176,40 @@ const handleMessages = () => {
           value,
         });
 
-        console.log(`[${deviceId}] ${sensorName} = ${value}`);
+        console.log(`📊 [${deviceId}] ${sensorName} = ${value}`);
       }
 
+      // update online
       await updateDeviceOnline(deviceId, true);
     }
+
+    // ───────── device/{deviceId}/status ─────────
+    else if (topic.startsWith('device/') && topic.endsWith('/status')) {
+
+      const deviceId = topic.split('/')[1];
+      const status = message.toString();
+
+      const isOnline = status === 'online';
+
+      await updateDeviceOnline(deviceId, isOnline);
+
+      await logToDevice(
+        deviceId,
+        isOnline ? 'INFO' : 'WARN',
+        `Device ${isOnline ? 'online' : 'offline'}`
+      );
+
+      io.emit(`device:status:${deviceId}`, {
+        deviceId,
+        isOnline
+      });
+
+      io.emit('device:status:all', {
+        deviceId,
+        isOnline
+      });
+    }
+
   });
 };
 
