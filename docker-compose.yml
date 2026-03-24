@@ -8,7 +8,14 @@ services:
       - "1883:1883"
       - "18083:18083"
     environment:
-      - EMQX_ALLOW_ANONYMOUS=true
+      - EMQX_ALLOW_ANONYMOUS=false
+      - EMQX_AUTHENTICATION__1__MECHANISM=password_based
+      - EMQX_AUTHENTICATION__1__BACKEND=http
+      - EMQX_AUTHENTICATION__1__URL=http://backend:4000/api/mqtt/auth
+      - EMQX_AUTHENTICATION__1__METHOD=post
+      - EMQX_AUTHENTICATION__1__HEADERS__content-type=application/json
+      - EMQX_AUTHENTICATION__1__BODY={"username":"$${username}","password":"$${password}","clientid":"$${clientid}"}
+      - EMQX_AUTHENTICATION__1__BODY__clientid=$${clientid}
 
   influxdb:
     image: influxdb:2.7
