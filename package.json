@@ -32,5 +32,8 @@
   },
   "devDependencies": {
     "prisma": "^7.5.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }
