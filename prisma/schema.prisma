@@ -86,19 +86,25 @@ model DeviceSensor {
 }
 
 model DeviceLog {
-  id        Int      @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
+  
+  device      Device   @relation(fields: [deviceId], references: [id])
+  deviceId    Int
+  
+  // เพิ่มตัวนี้เพื่อแบ่งหมวดหมู่ Log ให้ชัดเจน
+  level       LogLevel
+  eventCode   String?  // เช่น "CONN_ERR", "BATT_LOW", "SENSOR_OFFLINE"
+  
+  message     String
+  
+  isRead      Boolean  @default(false)
 
-  device    Device   @relation(fields: [deviceId], references: [id])
-  deviceId  Int
+  // เก็บข้อมูลสภาพแวดล้อมตอนเกิดเหตุ (เช่น { "rssi": -65, "vcc": 3.3 })
+  meta        Json?
 
-  level     LogLevel
-  message   String
-
-  meta      Json?
-
-  createdAt DateTime  @default(now())
+  createdAt   DateTime @default(now())
 
   @@index([deviceId])
   @@index([createdAt])
+  @@index([level]) 
 }
-

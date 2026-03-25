@@ -61,7 +61,9 @@ const updateDeviceOnline = async (deviceId, isOnline) => {
 // ─────────────────────────────────────────────
 // Log
 // ─────────────────────────────────────────────
-const logToDevice = async (deviceId, level, message, meta = null) => {
+// ใน src/mqtt/mqtt.handler.js
+
+const logToDevice = async (deviceId, level, message, eventCode = 'GENERIC', meta = null) => {
   try {
     const device = await prisma.device.findUnique({
       where: { deviceId },
@@ -69,14 +71,21 @@ const logToDevice = async (deviceId, level, message, meta = null) => {
 
     if (!device) return;
 
-    await prisma.deviceLog.create({
+    const newLog = await prisma.deviceLog.create({
       data: {
         deviceId: device.id,
         level,
+        eventCode,
         message,
         meta,
       },
     });
+
+    // ⚡️ ส่ง Log แบบ Real-time ไปที่หน้าเว็บทันที
+    const io = getIO();
+    io.emit(`device:log:${deviceId}`, newLog);
+    io.emit('device:log:all', { ...newLog, deviceName: device.name });
+
   } catch (err) {
     console.error(`❌ DeviceLog write failed:`, err.message);
   }
