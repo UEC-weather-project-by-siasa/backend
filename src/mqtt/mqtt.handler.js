@@ -162,7 +162,8 @@ const handleMessages = () => {
         const point = new Point('sensor_reading')
           .tag('device_id', deviceId)
           .tag('sensor', sensorName)
-          .floatField('value', parseFloat(value));
+          .floatField('value', parseFloat(value))
+          .timestamp(new Date());
 
         writeApi.writePoint(point);  // เขียนเข้า InfluxDB
 
@@ -184,6 +185,7 @@ const handleMessages = () => {
       // update online
       await updateDeviceOnline(deviceId, true);
     }
+
 
     // ───────── device/{deviceId}/status ─────────
     else if (topic.startsWith('device/') && topic.endsWith('/status')) {
