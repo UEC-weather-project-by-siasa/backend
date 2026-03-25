@@ -1,5 +1,5 @@
 const client = require('./mqtt.client');
-const { writeApi, Point } = require('../config/influx');
+const { writeApi, Point } = require('../config/influx'); // ← import InfluxDB
 const { getIO } = require('../socket/socket');
 const prisma = require('../config/db');
 
@@ -158,13 +158,15 @@ const handleMessages = () => {
           continue;
         }
 
+        // ───── เพิ่ม InfluxDB Write ─────
         const point = new Point('sensor_reading')
           .tag('device_id', deviceId)
           .tag('sensor', sensorName)
           .floatField('value', parseFloat(value));
 
-        writeApi.writePoint(point);
+        writeApi.writePoint(point);  // เขียนเข้า InfluxDB
 
+        // ───── ส่ง realtime ไป WebSocket ─────
         io.emit(`sensor:${deviceId}`, {
           sensor: sensorName,
           value,

@@ -370,5 +370,201 @@ router.put('/sensors/map/:id', protect, authorize('ADMIN'), deviceController.upd
  */
 router.delete('/sensors/map/:id', protect, authorize('ADMIN'), deviceController.deleteDeviceSensor);
 
+
+/**
+ * @swagger
+ * tags:
+ *   name: Device
+ *   description: Device sensor data API
+ */
+
+/**
+ * @swagger
+ * /api/device/sensors/{deviceId}/last:
+ *   get:
+ *     summary: Get the latest value of all sensors of a device
+ *     tags: [Device]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: deviceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the device
+ *     responses:
+ *       200:
+ *         description: Latest sensor values
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   additionalProperties:
+ *                     type: object
+ *                     properties:
+ *                       time:
+ *                         type: string
+ *                         format: date-time
+ *                       value:
+ *                         type: number
+ */
+router.get('/sensors/:deviceId/last', protect, deviceController.getDeviceSensorsLast);
+
+
+/**
+ * @swagger
+ * /api/device/sensors/{deviceId}/history:
+ *   get:
+ *     summary: Get historical data of all sensors for a device
+ *     tags: [Device]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: deviceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the device
+ *       - in: query
+ *         name: start
+ *         schema:
+ *           type: string
+ *           example: -1h
+ *         description: Start time (Flux format or ISO timestamp)
+ *       - in: query
+ *         name: end
+ *         schema:
+ *           type: string
+ *           example: now()
+ *         description: End time (Flux format or ISO timestamp)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *         description: Number of records per sensor
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *     responses:
+ *       200:
+ *         description: Historical data for all sensors
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   additionalProperties:
+ *                     type: array
+ *                     items:
+ *                       type: object
+ *                       properties:
+ *                         time:
+ *                           type: string
+ *                           format: date-time
+ *                         value:
+ *                           type: number
+ */
+router.get('/sensors/:deviceId/history', protect, deviceController.getDeviceSensorHistory);
+
+
+/**
+ * @swagger
+ * /api/device/sensors/{deviceId}/{sensorName}/history:
+ *   get:
+ *     summary: Get historical data of a specific sensor
+ *     tags: [Device]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: deviceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the device
+ *       - in: path
+ *         name: sensorName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Name of the sensor
+ *       - in: query
+ *         name: start
+ *         schema:
+ *           type: string
+ *           example: -1h
+ *         description: Start time (Flux format or ISO timestamp)
+ *       - in: query
+ *         name: end
+ *         schema:
+ *           type: string
+ *           example: now()
+ *         description: End time (Flux format or ISO timestamp)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *         description: Number of records per page
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [json, csv]
+ *           default: json
+ *         description: Response format
+ *     responses:
+ *       200:
+ *         description: Historical data of the sensor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       time:
+ *                         type: string
+ *                         format: date-time
+ *                       value:
+ *                         type: number
+ *           text/csv:
+ *             schema:
+ *               type: string
+ *               example: "time,value\n2026-03-25T07:00:00Z,23.4\n2026-03-25T07:01:00Z,23.6"
+ */
+router.get('/sensors/:deviceId/:sensorName/history', protect, deviceController.getSensorHistory);
+
+
+
 module.exports = router;
 

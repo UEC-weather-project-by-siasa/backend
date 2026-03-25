@@ -132,3 +132,52 @@ exports.deleteDeviceSensor = async (req, res) => {
     res.status(400).json({ status: 'fail', message: err.message });
   }
 };
+
+
+// ─── GET last values ───
+exports.getDeviceSensorsLast = async (req, res) => {
+  const { deviceId } = req.params; 
+  try {
+    const data = await deviceService.getDeviceSensorsLast(deviceId);
+    res.json({ status: 'success', data });
+  } catch (err) {
+    res.status(500).json({ status: 'fail', message: err.message });
+  }
+};
+
+// ─── GET history ของทุก sensor ───
+exports.getDeviceSensorHistory = async (req, res) => {
+  const { deviceId } = req.params;
+  const { start, end, limit, page } = req.query;
+  try {
+    const data = await deviceService.getDeviceSensorHistory(deviceId, {
+      start, end, limit: parseInt(limit), page: parseInt(page)
+    });
+    res.json({ status: 'success', data });
+  } catch (err) {
+    res.status(500).json({ status: 'fail', message: err.message });
+  }
+};
+
+// ─── GET history ของ sensor เดียว ───
+exports.getSensorHistory = async (req, res) => {
+  const { deviceId, sensorName } = req.params;
+  const { start, end, limit, page, format } = req.query;
+  try {
+    const { data } = await deviceService.getSensorHistory(deviceId, sensorName, {
+      start, end, limit: parseInt(limit), page: parseInt(page), format
+    });
+
+    if (format === 'csv') {
+      let csv = 'time,value\n';
+      data.forEach(d => { csv += `${d.time},${d.value}\n`; });
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${deviceId}_${sensorName}_history.csv"`);
+      return res.send(csv);
+    }
+
+    res.json({ status: 'success', data });
+  } catch (err) {
+    res.status(500).json({ status: 'fail', message: err.message });
+  }
+};
