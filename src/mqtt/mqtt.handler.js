@@ -131,90 +131,70 @@ const handleMessages = () => {
   client.on('message', async (topic, message) => {
     const io = getIO();
 
-    // ───────── device/{deviceId}/data ─────────
     if (topic.startsWith('device/') && topic.endsWith('/data')) {
       const deviceId = topic.split('/')[1];
-
       let payload;
-
       try {
         payload = JSON.parse(message.toString());
-      } catch (err) {
-        console.warn(`⚠️ Invalid JSON from ${deviceId}`);
-        return;
-      }
+      } catch (err) { return; }
 
       const sensorsPayload = payload.sensors || {};
+      const netMode = payload.net_mode || 'N/A';
+      const hardwareTs = payload.ts || 0;
 
+      // 1. บันทึกลง InfluxDB (วนลูปเก็บตามมาตรฐานเดิม)
       let sensors = sensorCache.get(deviceId);
-      if (!sensors) {
-        sensors = await loadDeviceSensors(deviceId);
-      }
+      if (!sensors) sensors = await loadDeviceSensors(deviceId);
 
       for (const [sensorName, value] of Object.entries(sensorsPayload)) {
-
-        if (!sensors.has(sensorName)) {
-          console.warn(`Unknown sensor "${sensorName}" for device ${deviceId}`);
-          continue;
-        }
-
-        // ───── เพิ่ม InfluxDB Write ─────
+        if (!sensors.has(sensorName)) continue;
+        
         const point = new Point('sensor_reading')
           .tag('device_id', deviceId)
           .tag('sensor', sensorName)
+          .tag('net_mode', netMode)
           .floatField('value', parseFloat(value))
+          .intField('hw_ts', hardwareTs)
           .timestamp(new Date());
-
-        writeApi.writePoint(point);  // เขียนเข้า InfluxDB
-
-        // ───── ส่ง realtime ไป WebSocket ─────
-        io.emit(`sensor:${deviceId}`, {
-          sensor: sensorName,
-          value,
-        });
-
-        io.emit('sensor:all', {
-          deviceId,
-          sensor: sensorName,
-          value,
-        });
-
-        console.log(`📊 [${deviceId}] ${sensorName} = ${value}`);
+        writeApi.writePoint(point);
       }
 
-      // update online
+      // 2. ⚡️ ส่ง Real-time แบบ "มัดรวม" (เหมาะกับ Dashboard มากกว่า)
+      const deviceUpdate = {
+        deviceId,
+        sensors: sensorsPayload, // ส่งไปทั้งก้อน { temp: 25, humi: 60 }
+        net_mode: netMode,
+        ts: hardwareTs,
+        isOnline: true, // ส่งข้อมูลมาแปลว่ายัง Online
+        lastUpdate: new Date()
+      };
+
+      console.log(`📡 MQTT Data Received: ${deviceId} →`, deviceUpdate);
+
+      // สำหรับหน้า Dashboard รวม (ทุกคนเห็นเหมือนกัน)
+      io.emit('device:update:all', deviceUpdate);
+
+      // สำหรับหน้าเจาะจงรายเครื่อง (Frontend ฟังเฉพาะ id ตัวเอง)
+      io.emit(`device:update:${deviceId}`, deviceUpdate);
+
       await updateDeviceOnline(deviceId, true);
     }
 
-
-    // ───────── device/{deviceId}/status ─────────
+    // ───────── สถานะ Online/Offline ─────────
     else if (topic.startsWith('device/') && topic.endsWith('/status')) {
-
       const deviceId = topic.split('/')[1];
-      const status = message.toString();
+      const isOnline = message.toString() === 'online';
 
-      const isOnline = status === 'online';
+      const statusUpdate = { deviceId, isOnline, timestamp: new Date() };
+
+      // แจ้งเตือนสถานะเปลี่ยนไปที่หน้า Dashboard
+      io.emit('device:status:all', statusUpdate);
+      io.emit(`device:status:${deviceId}`, statusUpdate);
 
       await updateDeviceOnline(deviceId, isOnline);
-
-      await logToDevice(
-        deviceId,
-        isOnline ? 'INFO' : 'WARN',
-        `Device ${isOnline ? 'online' : 'offline'}`
-      );
-
-      io.emit(`device:status:${deviceId}`, {
-        deviceId,
-        isOnline
-      });
-
-      io.emit('device:status:all', {
-        deviceId,
-        isOnline
-      });
     }
-
   });
+
 };
 
 module.exports = { handleMessages };
