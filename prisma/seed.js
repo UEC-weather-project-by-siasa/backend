@@ -42,6 +42,27 @@ async function main() {
         brand: 'Bosch',
       },
     }),
+    prisma.sensor.upsert({
+      where: { name: 'wind_speed' },
+      update: {},
+      create: {
+        name: 'wind_speed',
+        unit: 'm/s',
+        model: 'Anemometer',
+        brand: 'Generic',
+      },
+    }),
+    prisma.sensor.upsert({
+      where: { name: 'wind_direction' },
+      update: {},
+      create: {
+        name: 'wind_direction',
+        unit: 'deg',
+        model: 'Wind Vane',
+        brand: 'Generic',
+      },
+    }),
+  
   ]);
 
   

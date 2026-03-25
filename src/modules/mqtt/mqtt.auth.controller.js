@@ -11,12 +11,10 @@ exports.authenticate = async (req, res) => {
       return res.json({ result: 'deny' });
     }
 
-    // ✅ allow backend
     if (req.body.clientid === 'backend_server') {
       return res.json({ result: 'allow' });
     }
 
-    // ✅ check device จาก DB
     const device = await prisma.device.findUnique({
       where: { deviceId: username },
     });

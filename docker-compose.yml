@@ -79,6 +79,8 @@ services:
       - DATABASE_URL=postgresql://admin:admin1234@postgres:5432/uec_weather_iot?schema=public
       - JWT_SECRET=UECWeatherSecretKey
       - JWT_REFRESH_SECRET=UECWeatherRefreshSecretKey
+      - MQTT_USER=backend
+      - MQTT_PASS=backend_secret
     volumes:
       - .:/app
       - /app/node_modules

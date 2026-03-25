@@ -8,7 +8,7 @@ const swaggerSpec = require('./config/swagger');
 const authRoutes = require('./modules/auth/auth.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
 
-const mqttAuthRoutes = require('./mqtt/mqtt.auth.routes');
+const mqttAuthRoutes = require('./modules/mqtt/mqtt.auth.routes');
 
 const app = express();
 
@@ -21,7 +21,7 @@ app.use(express.urlencoded({ extended: true }));
 // Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Routes
+// auth
 app.use('/api/auth', authRoutes);
 
 app.use('/api/mqtt', mqttAuthRoutes); 
