@@ -7,6 +7,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const authRoutes = require('./modules/auth/auth.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
+const deviceRoutes = require('./modules/device/device.routes');
 
 const mqttAuthRoutes = require('./modules/mqtt/mqtt.auth.routes');
 
@@ -21,13 +22,10 @@ app.use(express.urlencoded({ extended: true }));
 // Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// auth
 app.use('/api/auth', authRoutes);
-
 app.use('/api/mqtt', mqttAuthRoutes); 
-
-// Admin routes
 app.use('/api/admin', adminRoutes); 
+app.use('/api/device', deviceRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Backend is running' });
