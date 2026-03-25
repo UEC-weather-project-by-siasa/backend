@@ -75,6 +75,13 @@ docker compose logs -f weather-backend
 docker exec -it weather-backend sh
 ```
 
+- 📜 Shell prisma studio
+```Bash
+docker-compose exec backend npx prisma studio --browser none
+```
+
+
+
 ---
 
 ## 🧬 Database Management (Prisma)
