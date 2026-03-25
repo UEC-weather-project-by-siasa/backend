@@ -81,6 +81,11 @@ docker-compose exec backend npx prisma studio --browser none
 ```
 
 
+- 📜 prisma db seed
+```Bash
+docker exec -it weather-backend npx prisma db seed
+```
+
 
 ---
 
