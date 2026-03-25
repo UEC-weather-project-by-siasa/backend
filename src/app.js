@@ -9,6 +9,7 @@ const authRoutes = require('./modules/auth/auth.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
 const deviceRoutes = require('./modules/device/device.routes');
 const telemetryRoutes = require('./modules/telemetry/telemetry.routes');
+const systemRoutes = require('./modules/system/system.routes');
 
 const mqttAuthRoutes = require('./modules/mqtt/mqtt.auth.routes');
 
@@ -28,6 +29,7 @@ app.use('/api/mqtt', mqttAuthRoutes);
 app.use('/api/admin', adminRoutes); 
 app.use('/api/device', deviceRoutes);
 app.use('/api/telemetry', telemetryRoutes);
+app.use('/api/system', systemRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Backend is running' });
