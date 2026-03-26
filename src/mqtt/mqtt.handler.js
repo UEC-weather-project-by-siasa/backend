@@ -51,10 +51,10 @@ const updateDeviceOnline = async (deviceId, isOnline) => {
       }
     });
 
-    console.log(`${isOnline ? '🟢' : '🔴'} Device ${deviceId} → ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+    console.log(`Device ${deviceId} → ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
 
   } catch (err) {
-    console.error(`❌ DB update failed for ${deviceId}:`, err.message);
+    console.error(`DB update failed for ${deviceId}:`, err.message);
   }
 };
 
@@ -81,13 +81,12 @@ const logToDevice = async (deviceId, level, message, eventCode = 'GENERIC', meta
       },
     });
 
-    // ⚡️ ส่ง Log แบบ Real-time ไปที่หน้าเว็บทันที
     const io = getIO();
     io.emit(`device:log:${deviceId}`, newLog);
     io.emit('device:log:all', { ...newLog, deviceName: device.name });
 
   } catch (err) {
-    console.error(`❌ DeviceLog write failed:`, err.message);
+    console.error(`DeviceLog write failed:`, err.message);
   }
 };
 
@@ -123,7 +122,7 @@ const startHeartbeatMonitor = () => {
           isOnline: false
         });
 
-        console.log(`⚠️ Device timeout: ${deviceId}`);
+        console.log(`Device timeout: ${deviceId}`);
       }
     }
 
@@ -178,7 +177,7 @@ const handleMessages = () => {
         lastUpdate: new Date()
       };
 
-      console.log(`📡 MQTT Data Received: ${deviceId} →`, deviceUpdate);
+      console.log(`MQTT Data Received: ${deviceId} →`, deviceUpdate);
 
       // สำหรับหน้า Dashboard รวม (ทุกคนเห็นเหมือนกัน)
       io.emit('device:update:all', deviceUpdate);

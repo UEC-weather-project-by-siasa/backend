@@ -9,6 +9,6 @@ const client = new InfluxDB({
 const writeApi = client.getWriteApi(process.env.INFLUX_ORG, process.env.INFLUX_BUCKET);
 const queryApi = client.getQueryApi(process.env.INFLUX_ORG);
 
-console.log('📈 InfluxDB: Client Initialized');
+console.log('InfluxDB: Client Initialized');
 
 module.exports = { writeApi, queryApi, Point };

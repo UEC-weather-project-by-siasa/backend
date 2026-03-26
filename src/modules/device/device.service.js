@@ -170,7 +170,7 @@ const getDeviceSensorsLast = async (deviceId) => {
       }
       results[sensorName] = lastPoint;
     } catch (err) {
-      console.error(`❌ Influx error [${sensorName}]:`, err.message);
+      console.error(`Influx error [${sensorName}]:`, err.message);
       results[sensorName] = null;
     }
   }
@@ -219,7 +219,7 @@ const getDeviceSensorHistory = async (deviceId, { start='-1h', end='now()', limi
       }
       results[sensorName] = data;
     } catch (err) {
-      console.error(`❌ Influx History error [${sensorName}]:`, err.message);
+      console.error(`Influx History error [${sensorName}]:`, err.message);
       results[sensorName] = [];
     }
   }
@@ -257,7 +257,7 @@ const getSensorHistory = async (deviceId, sensorName, { start='-1h', end='now()'
       data.push({ time: o._time, value: o._value });
     }
   } catch (err) {
-    console.error(`❌ Influx Single Sensor error:`, err.message);
+    console.error(`Influx Single Sensor error:`, err.message);
   }
 
   return { data, format };

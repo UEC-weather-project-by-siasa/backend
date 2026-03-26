@@ -5,7 +5,7 @@ exports.authenticate = async (req, res) => {
     const username = req.body.username || req.body.clientid;
     const password = req.body.password;
 
-    console.log(`🔐 MQTT Auth: username=${username} clientid=${req.body.clientid}`);
+    // console.log(`🔐 MQTT Auth: username=${username} clientid=${req.body.clientid}`);
 
     if (!username || !password) {
       return res.json({ result: 'deny' });

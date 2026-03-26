@@ -18,7 +18,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 prisma.$connect()
-  .then(() => console.log('🟢 Prisma: Connected to PostgreSQL'))
-  .catch((err) => console.error('❌ Prisma Connection Error:', err));
+  .then(() => console.log('Prisma: Connected to PostgreSQL'))
+  .catch((err) => console.error('Prisma Connection Error:', err));
 
 module.exports = prisma;

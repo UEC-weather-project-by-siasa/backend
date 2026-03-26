@@ -12,16 +12,16 @@ const client = mqtt.connect(process.env.MQTT_BROKER, {
 });
 
 client.on('connect', () => {
-  console.log('🛰️ MQTT: Connected to EMQX');
+  console.log('MQTT: Connected to EMQX');
   client.subscribe(['device/+/data', 'device/+/status'], (err) => {
-    if (!err) console.log('📥 Subscribed to Weather & Status topics');
+    if (!err) console.log('Subscribed to Weather & Status topics');
   });
 });
 
 
 
 client.on('error', (err) => {
-  console.error('❌ MQTT Connection Error:', err);
+  console.error('MQTT Connection Error:', err);
 });
 
 module.exports = client;

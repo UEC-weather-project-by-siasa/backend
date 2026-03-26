@@ -8,8 +8,8 @@ const init = (httpServer) => {
   });
 
   io.on('connection', (socket) => {
-    console.log(`🔌 Socket Connected: ${socket.id}`);
-    socket.on('disconnect', () => console.log('🔌 Socket Disconnected'));
+    console.log(`Socket Connected: ${socket.id}`);
+    socket.on('disconnect', () => console.log('Socket Disconnected'));
   });
 
   return io;
