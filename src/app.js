@@ -22,7 +22,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(hpp()); // ป้องกัน HTTP Parameter Pollution
+app.use(hpp()); 
 
 // ─── Standard Middlewares ───
 app.use(morgan('dev')); 

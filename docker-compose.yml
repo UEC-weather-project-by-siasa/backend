@@ -45,16 +45,6 @@ services:
     volumes:
       - uec_weather_iot_pgdata:/var/lib/postgresql/data
 
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    ports:
-      - "3000:3000"
-    depends_on:
-      - influxdb
-    volumes:
-      - grafana_data:/var/lib/grafana
-
   backend:
     build: .
     container_name: weather-backend
@@ -91,5 +81,4 @@ services:
 
 volumes:
   influxdb_data:
-  grafana_data:
   uec_weather_iot_pgdata:
