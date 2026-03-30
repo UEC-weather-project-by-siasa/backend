@@ -275,7 +275,7 @@ router.delete('/sensors/:id', protect, authorize('ADMIN'), deviceController.dele
 
 /**
  * @swagger
- * /api/device/{deviceId}/sensors:
+ * /api/device/{id}/sensors:
  *   get:
  *     summary: Get all sensors of a device (login required)
  *     tags: [DeviceSensor]
