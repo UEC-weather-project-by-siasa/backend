@@ -36,23 +36,25 @@ const updateDeviceOnline = async (deviceId, isOnline) => {
     const cached = deviceCache.get(deviceId);
     const now = Date.now();
 
-    // update cache
-    deviceCache.set(deviceId, {
-      lastUpdate: now,
-      isOnline
-    });
+    const statusChanged = !cached || cached.isOnline !== isOnline;
 
-    // update DB
+    deviceCache.set(deviceId, { lastUpdate: now, isOnline });
+
     await prisma.device.updateMany({
       where: { deviceId },
-      data: {
-        isOnline,
-        lastSeen: new Date()
-      }
+      data: { isOnline, lastSeen: new Date() }
     });
 
-    console.log(`Device ${deviceId} → ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+    if (statusChanged) {
+      await logToDevice(
+        deviceId,
+        isOnline ? 'INFO' : 'WARN',
+        isOnline ? 'Device came online' : 'Device went offline',
+        isOnline ? 'DEVICE_ONLINE' : 'DEVICE_OFFLINE'
+      );
+    }
 
+    console.log(`Device ${deviceId} → ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
   } catch (err) {
     console.error(`DB update failed for ${deviceId}:`, err.message);
   }
@@ -99,30 +101,12 @@ const startHeartbeatMonitor = () => {
 
     for (const [deviceId, cached] of deviceCache.entries()) {
 
-      // 60 วิ ไม่ส่งข้อมูล = offline
       if (now - cached.lastUpdate > 60000 && cached.isOnline) {
-
-        await updateDeviceOnline(deviceId, false);
-
-        await logToDevice(
-          deviceId,
-          'WARN',
-          'Device timeout (no data)'
-        );
+        await updateDeviceOnline(deviceId, false); 
 
         const io = getIO();
-
-        io.emit(`device:status:${deviceId}`, {
-          deviceId,
-          isOnline: false
-        });
-
-        io.emit('device:status:all', {
-          deviceId,
-          isOnline: false
-        });
-
-        console.log(`Device timeout: ${deviceId}`);
+        io.emit(`device:status:${deviceId}`, { deviceId, isOnline: false });
+        io.emit('device:status:all', { deviceId, isOnline: false });
       }
     }
 
@@ -200,6 +184,13 @@ const handleMessages = () => {
       io.emit(`device:status:${deviceId}`, statusUpdate);
 
       await updateDeviceOnline(deviceId, isOnline);
+
+      await logToDevice(
+        deviceId,
+        isOnline ? 'INFO' : 'WARN',
+        isOnline ? 'Device connected' : 'Device disconnected',
+        isOnline ? 'DEVICE_ONLINE' : 'DEVICE_OFFLINE'
+      );
     }
   });
 
