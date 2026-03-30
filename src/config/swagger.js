@@ -29,7 +29,7 @@ const options = {
             name: { type: 'string', example: 'Tanakrit' },
             email: { type: 'string', example: 'admin@example.com' },
             password: { type: 'string', example: 'password123' },
-            profilePicture: { type: 'string' },
+            profilePicture: { type: 'string' , example: '/profilePicture.png'},
             role: { 
               type: 'string',
               enum: ['USER', 'ADMIN'],

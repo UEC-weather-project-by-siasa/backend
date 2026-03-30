@@ -12,6 +12,7 @@ const deviceRoutes = require('./modules/device/device.routes');
 const telemetryRoutes = require('./modules/telemetry/telemetry.routes');
 const systemRoutes = require('./modules/system/system.routes');
 const mqttAuthRoutes = require('./modules/mqtt/mqtt.auth.routes');
+const searchRoutes = require("./modules/search/search.routes");
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/device', deviceRoutes);
 app.use('/api/telemetry', telemetryRoutes);
 app.use('/api/system', systemRoutes);
+app.use("/api/search", searchRoutes);
 
 app.get('/', (req, res) => {
   res.json({ 
