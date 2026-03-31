@@ -144,11 +144,10 @@ const handleMessages = () => {
         const point = new Point('sensor_reading')
           .tag('device_id', deviceId)
           .tag('sensor', sensorName)
-          .tag('net_mode', netMode)
           .floatField('value', parseFloat(value))
-          .intField('hw_ts', hardwareTs)
           .timestamp(new Date());
         writeApi.writePoint(point);
+
       }
 
       // 2. ⚡️ ส่ง Real-time แบบ "มัดรวม" (เหมาะกับ Dashboard มากกว่า)
