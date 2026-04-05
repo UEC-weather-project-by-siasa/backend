@@ -95,7 +95,6 @@ async function main() {
       create: {
         deviceId: device.id,
         sensorId: sensor.id,
-        alias: sensor.name,
       },
     });
   }

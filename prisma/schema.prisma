@@ -74,13 +74,11 @@ model Sensor {
 model DeviceSensor {
   id        Int     @id @default(autoincrement())
 
-  device    Device  @relation(fields: [deviceId], references: [id])
+  device    Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   deviceId  Int
 
   sensor    Sensor  @relation(fields: [sensorId], references: [id])
   sensorId  Int
-
-  alias     String? // ชื่อเล่น 
 
   @@unique([deviceId, sensorId])
 }
@@ -88,7 +86,7 @@ model DeviceSensor {
 model DeviceLog {
   id          Int      @id @default(autoincrement())
   
-  device      Device   @relation(fields: [deviceId], references: [id])
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   deviceId    Int
   
   // เพิ่มตัวนี้เพื่อแบ่งหมวดหมู่ Log ให้ชัดเจน
