@@ -51,4 +51,26 @@ const { protect } = require("../../middleware/auth.middleware");
  */
 router.post("/", protect, upload.single("file"), uploadController.uploadFile);
 
+// delete file
+/**
+ * @swagger
+ * /api/upload/{filename}:
+ *   delete:
+ *     summary: Delete uploaded file
+ *     tags: [Upload]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: filename
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: 1712454123412-234234234.png
+ *     responses:
+ *       200:
+ *         description: File deleted successfully
+ */
+router.delete("/:filename", protect, uploadController.deleteFile);
+
 module.exports = router;
