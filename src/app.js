@@ -13,6 +13,7 @@ const telemetryRoutes = require('./modules/telemetry/telemetry.routes');
 const systemRoutes = require('./modules/system/system.routes');
 const mqttAuthRoutes = require('./modules/mqtt/mqtt.auth.routes');
 const searchRoutes = require("./modules/search/search.routes");
+const uploadRoutes = require("./modules/upload/upload.routes");
 
 const app = express();
 
@@ -41,7 +42,12 @@ app.use('/api/device', deviceRoutes);
 app.use('/api/telemetry', telemetryRoutes);
 app.use('/api/system', systemRoutes);
 app.use("/api/search", searchRoutes);
+app.use("/api/upload", uploadRoutes);
 
+// ─── Upload ───
+app.use("/uploads", express.static("uploads"));
+
+// ─── Health Check ───
 app.get('/', (req, res) => {
   res.json({ 
     status: 'success', 
