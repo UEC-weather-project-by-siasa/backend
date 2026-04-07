@@ -26,6 +26,120 @@ const { authorize } = require('../../middleware/role.middleware');
  */
 router.get('/users', protect, authorize('ADMIN'), adminController.getAllUsers);
 
+
+// ─── Get User by ID ─────────────────────────────
+/**
+ * @swagger
+ * /api/admin/users/{id}:
+ *   get:
+ *     summary: Get user by ID (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: User found
+ *       404:
+ *         description: User not found
+ */
+router.get('/users/:id', protect, authorize('ADMIN'), adminController.getUserById);
+
+
+// ─── Update User ─────────────────────────────
+/**
+ * @swagger
+ * /api/admin/users/{id}:
+ *   patch:
+ *     summary: Update user info (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User updated
+ */
+router.patch('/users/:id', protect, authorize('ADMIN'), adminController.updateUser);
+
+
+// ─── Update User Role ─────────────────────────────
+/**
+ * @swagger
+ * /api/admin/users/{id}/role:
+ *   patch:
+ *     summary: Update user role (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - role
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [USER, ADMIN]
+ *     responses:
+ *       200:
+ *         description: Role updated
+ */
+router.patch('/users/:id/role', protect, authorize('ADMIN'), adminController.updateUserRole);
+
+
+// ─── Force Logout ─────────────────────────────
+/**
+ * @swagger
+ * /api/admin/users/{id}/force-logout:
+ *   post:
+ *     summary: Force logout user (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: User logged out
+ */
+router.post('/users/:id/force-logout', protect, authorize('ADMIN'), adminController.forceLogout);
+
+
 // ─── Delete User ───────────────────────────────
 /**
  * @swagger
@@ -45,7 +159,7 @@ router.get('/users', protect, authorize('ADMIN'), adminController.getAllUsers);
  *       200:
  *         description: User deleted successfully
  */
-router.delete('/users/:id;', protect, authorize('ADMIN'), adminController.deleteUser);
+router.delete('/users/:id', protect, authorize('ADMIN'), adminController.deleteUser);
+
 
 module.exports = router;
-

@@ -20,3 +20,54 @@ exports.deleteUser = async (req, res) => {
     res.status(400).json({ status: 'fail', message: error.message });
   }
 };
+
+exports.getUserById = async (req, res) => {
+  try {
+    const user = await adminService.getUserById(
+      parseInt(req.params.id)
+    );
+
+    res.json({ status: 'success', data: user });
+  } catch (error) {
+    res.status(404).json({ status: 'fail', message: error.message });
+  }
+};
+
+exports.updateUserRole = async (req, res) => {
+  try {
+    const result = await adminService.updateUserRole(
+      parseInt(req.params.id),
+      req.body.role,
+      req.user.id
+    );
+
+    res.json({ status: 'success', data: result });
+  } catch (error) {
+    res.status(400).json({ status: 'fail', message: error.message });
+  }
+};
+
+exports.updateUser = async (req, res) => {
+  try {
+    const result = await adminService.updateUser(
+      parseInt(req.params.id),
+      req.body
+    );
+
+    res.json({ status: 'success', data: result });
+  } catch (error) {
+    res.status(400).json({ status: 'fail', message: error.message });
+  }
+};
+
+exports.forceLogout = async (req, res) => {
+  try {
+    const result = await adminService.forceLogout(
+      parseInt(req.params.id)
+    );
+
+    res.json({ status: 'success', data: result });
+  } catch (error) {
+    res.status(400).json({ status: 'fail', message: error.message });
+  }
+};
