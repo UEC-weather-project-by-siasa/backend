@@ -2,6 +2,7 @@ const prisma = require('../../config/db');
 
 /**
  * ดึงรายการ Logs แบบแบ่งหน้า (Pagination)
+ * รองรับการดึงของ 1 เครื่อง หรือ ดึงของ "all" (ทุกเครื่อง)
  */
 const getDeviceLogs = async (deviceId, { 
   level, 
@@ -11,21 +12,25 @@ const getDeviceLogs = async (deviceId, {
   isRead 
 } = {}) => {
   const skip = (page - 1) * limit;
-  
-  // หา ID ของ Device ก่อน เพราะ Log ผูกกับ ID (Int) ไม่ใช่ deviceId (String)
-  const device = await prisma.device.findUnique({
-    where: { deviceId },
-    select: { id: true }
-  });
+  let where = {};
 
-  if (!device) throw new Error('Device not found');
+  // ถ้าไม่ได้ระบุว่าเป็น 'all' ให้ทำการ filter เฉพาะ deviceId ที่ส่งมา
+  if (deviceId && deviceId !== 'all') {
+    const device = await prisma.device.findUnique({
+      where: { deviceId },
+      select: { id: true }
+    });
 
-  const where = {
-    deviceId: device.id,
-    ...(level && { level }),
-    ...(eventCode && { eventCode }),
-    ...(isRead !== undefined && { isRead: isRead === 'true' })
-  };
+    if (!device) throw new Error('Device not found');
+    where.deviceId = device.id;
+  }
+
+  // เพิ่ม Filter อื่นๆ
+  if (level && level !== 'ALL') where.level = level;
+  if (eventCode) where.eventCode = eventCode;
+  if (isRead !== undefined && isRead !== 'ALL') {
+    where.isRead = isRead === 'true';
+  }
 
   const [logs, total] = await prisma.$transaction([
     prisma.deviceLog.findMany({
@@ -33,17 +38,29 @@ const getDeviceLogs = async (deviceId, {
       orderBy: { createdAt: 'desc' },
       take: limit,
       skip: skip,
+      // ดึงข้อมูลชื่ออุปกรณ์มาด้วย เพื่อแสดงในหน้า Frontend ตอนเลือก 'All Devices'
+      include: {
+        device: {
+          select: { name: true, deviceId: true }
+        }
+      }
     }),
     prisma.deviceLog.count({ where })
   ]);
 
+  // Map ข้อมูลให้ Frontend เรียกใช้งานง่ายขึ้น (แบนข้อมูล deviceName ออกมา)
+  const formattedLogs = logs.map(log => ({
+    ...log,
+    deviceName: log.device ? (log.device.name || log.device.deviceId) : 'Unknown'
+  }));
+
   return {
-    logs,
+    logs: formattedLogs,
     pagination: {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit)
+      totalPages: Math.ceil(total / limit) || 1
     }
   };
 };
@@ -65,7 +82,6 @@ const getTelemetrySummary = async () => {
   const totalDevices = await prisma.device.count();
   const onlineDevices = await prisma.device.count({ where: { isOnline: true } });
   
-  // ดึง Error log ล่าสุด 5 รายการจากระบบ
   const recentErrors = await prisma.deviceLog.findMany({
     where: { level: 'ERROR' },
     orderBy: { createdAt: 'desc' },
@@ -79,6 +95,13 @@ const getTelemetrySummary = async () => {
     offlineDevices: totalDevices - onlineDevices,
     recentErrors
   };
+};
+
+/**
+ * ล้าง Log ทั้งหมดในระบบ (Clear All Logs)
+ */
+const deleteAllLogs = async () => {
+  return await prisma.deviceLog.deleteMany({});
 };
 
 /**
@@ -99,5 +122,6 @@ module.exports = {
   getDeviceLogs,
   markAsRead,
   getTelemetrySummary,
+  deleteAllLogs,
   purgeOldLogs
 };

@@ -36,3 +36,17 @@ exports.getSummary = async (req, res) => {
     res.status(500).json({ status: 'fail', message: err.message });
   }
 };
+
+// เพิ่มฟังก์ชัน ล้าง Log ทั้งหมด
+exports.clearLogs = async (req, res) => {
+  try {
+    const result = await telemetryService.deleteAllLogs();
+    res.json({ 
+      status: 'success', 
+      message: 'All logs have been cleared.',
+      deletedCount: result.count
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'fail', message: err.message });
+  }
+};
