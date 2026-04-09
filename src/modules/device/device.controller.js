@@ -148,24 +148,21 @@ exports.getDeviceSensorsLast = async (req, res) => {
 // ─── GET history ของทุก sensor ───
 exports.getDeviceSensorHistory = async (req, res) => {
   const { deviceId } = req.params;
-  const { start, end, limit, page } = req.query;
+  const { start, end } = req.query; // ลบ limit, page ออก
   try {
-    const data = await deviceService.getDeviceSensorHistory(deviceId, {
-      start, end, limit: parseInt(limit), page: parseInt(page)
-    });
+    const data = await deviceService.getDeviceSensorHistory(deviceId, { start, end });
     res.json({ status: 'success', data });
   } catch (err) {
     res.status(500).json({ status: 'fail', message: err.message });
   }
 };
-
 // ─── GET history ของ sensor เดียว ───
 exports.getSensorHistory = async (req, res) => {
   const { deviceId, sensorName } = req.params;
-  const { start, end, limit, page, format } = req.query;
+  const { start, end, format } = req.query; // ลบ limit, page ออก
   try {
     const { data } = await deviceService.getSensorHistory(deviceId, sensorName, {
-      start, end, limit: parseInt(limit), page: parseInt(page), format
+      start, end, format
     });
 
     if (format === 'csv') {

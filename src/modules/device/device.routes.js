@@ -422,7 +422,7 @@ router.get('/sensors/:deviceId/last', protect, deviceController.getDeviceSensors
  * @swagger
  * /api/device/sensors/{deviceId}/history:
  *   get:
- *     summary: Get historical data of all sensors for a device
+ *     summary: Get historical data of all sensors for a device (Auto-downsampled for graphs)
  *     tags: [Device]
  *     security:
  *       - bearerAuth: []
@@ -437,26 +437,14 @@ router.get('/sensors/:deviceId/last', protect, deviceController.getDeviceSensors
  *         name: start
  *         schema:
  *           type: string
- *           example: -1h
+ *           default: -1h
  *         description: Start time (Flux format or ISO timestamp)
  *       - in: query
  *         name: end
  *         schema:
  *           type: string
- *           example: now()
+ *           default: now()
  *         description: End time (Flux format or ISO timestamp)
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 100
- *         description: Number of records per sensor
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *         description: Page number for pagination
  *     responses:
  *       200:
  *         description: Historical data for all sensors
@@ -488,7 +476,7 @@ router.get('/sensors/:deviceId/history', protect, deviceController.getDeviceSens
  * @swagger
  * /api/device/sensors/{deviceId}/{sensorName}/history:
  *   get:
- *     summary: Get historical data of a specific sensor
+ *     summary: Get historical data of a specific sensor (Supports raw CSV export)
  *     tags: [Device]
  *     security:
  *       - bearerAuth: []
@@ -509,33 +497,21 @@ router.get('/sensors/:deviceId/history', protect, deviceController.getDeviceSens
  *         name: start
  *         schema:
  *           type: string
- *           example: -1h
+ *           default: -1h
  *         description: Start time (Flux format or ISO timestamp)
  *       - in: query
  *         name: end
  *         schema:
  *           type: string
- *           example: now()
+ *           default: now()
  *         description: End time (Flux format or ISO timestamp)
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 100
- *         description: Number of records per page
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *         description: Page number
  *       - in: query
  *         name: format
  *         schema:
  *           type: string
  *           enum: [json, csv]
  *           default: json
- *         description: Response format
+ *         description: Response format (JSON auto-downsamples, CSV returns raw data up to 50,000 limits)
  *     responses:
  *       200:
  *         description: Historical data of the sensor
@@ -560,11 +536,12 @@ router.get('/sensors/:deviceId/history', protect, deviceController.getDeviceSens
  *           text/csv:
  *             schema:
  *               type: string
- *               example: "time,value\n2026-03-25T07:00:00Z,23.4\n2026-03-25T07:01:00Z,23.6"
+ *               example: |
+ *                 time,value
+ *                 2026-03-25T07:00:00Z,23.4
+ *                 2026-03-25T07:01:00Z,23.6
  */
 router.get('/sensors/:deviceId/:sensorName/history', protect, deviceController.getSensorHistory);
-
-
 
 module.exports = router;
 
