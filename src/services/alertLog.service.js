@@ -17,7 +17,9 @@ const getAlertLogs = async (query, user) => {
     prisma.alertLog.findMany({
       where, skip: (page - 1) * limit, take: limit,
       orderBy: { createdAt: 'desc' },
-      include: { device: { select: { name: true } }, alertRule: { select: { name: true } } }
+      include: { 
+        device: { select: { name: true } }, 
+        alertRule: { select: { name: true, type: true } } }
     }),
     prisma.alertLog.count({ where })
   ]);
