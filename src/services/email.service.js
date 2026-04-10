@@ -1,162 +1,65 @@
-const prisma = require('../config/db');
-const { sendAlertEmail } = require('./email.service');
-const { createNotification } = require('./notification.service');
+const nodemailer = require('nodemailer');
 
-const COOLDOWN_MINUTES = 15;
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: process.env.SMTP_PORT,
+  secure: true, // เปลี่ยนเป็น true ถ้าใช้พอร์ต 465
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
-const checkSensorAlerts = async (deviceId, sensorsPayload) => {
+// เปลี่ยน `to` เป็นรับ Array ได้
+const sendAlertEmail = async (emails, deviceName, sensorName, condition, threshold, actualValue) => {
+  const isMultiple = Array.isArray(emails);
+  
+  const mailOptions = {
+    from: `"UEC Weather Alert" <${process.env.SMTP_USER}>`,
+    to: isMultiple ? undefined : emails,      // ถ้าคนเดียวใส่ To
+    bcc: isMultiple ? emails.join(',') : undefined, // ถ้าหลายคนใส่ BCC
+    subject: `⚠️ System Alert: ${deviceName} - ${sensorName} is out of range!`,
+    html: `
+      <h2>🚨 Sensor Alert Triggered</h2>
+      <p><strong>Device:</strong> ${deviceName}</p>
+      <p><strong>Sensor:</strong> ${sensorName}</p>
+      <p><strong>Condition:</strong> ${condition} ${threshold}</p>
+      <p><strong>Current Value:</strong> <span style="color: red; font-size: 1.2em;">${actualValue}</span></p>
+      <br/>
+      <p>Please check your system dashboard for more details.</p>
+    `,
+  };
+
   try {
-    const device = await prisma.device.findUnique({ where: { deviceId } });
-    if (!device) return;
-
-    // ดึง Rule ทั้งหมดที่เกี่ยวข้อง (ของ Device นี้ หรือที่เป็น Global)
-    const activeRules = await prisma.alertRule.findMany({
-      where: {
-        isActive: true,
-        OR: [{ deviceId: device.id }, { type: 'GLOBAL' }]
-      },
-      include: { user: true, sensor: true }
-    });
-
-    for (const rule of activeRules) {
-      const actualValue = sensorsPayload[rule.sensor.name];
-      if (actualValue === undefined) continue;
-
-      // --- 1. Logic Condition Check ---
-      let isTriggered = false;
-      switch (rule.condition) {
-        case '>': isTriggered = actualValue > rule.threshold; break;
-        case '<': isTriggered = actualValue < rule.threshold; break;
-        case '>=': isTriggered = actualValue >= rule.threshold; break;
-        case '<=': isTriggered = actualValue <= rule.threshold; break;
-        case '==': isTriggered = actualValue === rule.threshold; break;
-      }
-
-      if (isTriggered) {
-        const now = new Date();
-        const diffMinutes = (now - (rule.lastTrigger || 0)) / (1000 * 60);
-
-        // เช็ค Cooldown ป้องกัน Email/Notification รัว
-        if (diffMinutes >= COOLDOWN_MINUTES) {
-          
-          // --- 2. Prepare Data & Save Alert Log ---
-          const logMessage = `[${rule.name}] ${rule.sensor.name} triggered: ${actualValue} ${rule.condition} ${rule.threshold}`;
-          
-          const newLog = await prisma.alertLog.create({
-            data: {
-              ruleId: rule.id,
-              deviceId: device.id,
-              sensorName: rule.sensor.name,
-              condition: rule.condition,
-              threshold: rule.threshold,
-              actualValue: actualValue,
-              message: logMessage,
-            }
-          });
-
-          // --- 3. Notification & Email Logic ---
-          const deviceDisplayName = device.name || device.deviceId;
-
-          if (rule.type === 'USER' && rule.user?.id) {
-            // กรณี USER: ส่งให้เจ้าของคนเดียว
-            if (rule.user.email) {
-              await sendAlertEmail(rule.user.email, deviceDisplayName, rule.sensor.name, rule.condition, rule.threshold, actualValue);
-            }
-            await createNotification(rule.user.id, {
-              title: '🚨 Sensor Alert',
-              message: logMessage,
-              alertLogId: newLog.id
-            });
-          } else {
-            // กรณี SYSTEM / GLOBAL: ส่งให้ทุกคนในระบบ
-            const allUsers = await prisma.user.findMany({ select: { id: true, email: true } });
-            
-            // ส่ง Email กลุ่ม (BCC)
-            const emails = allUsers.map(u => u.email).filter(e => e);
-            if (emails.length > 0) {
-              await sendAlertEmail(emails, rule.type === 'GLOBAL' ? 'GLOBAL SYSTEM' : deviceDisplayName, rule.sensor.name, rule.condition, rule.threshold, actualValue);
-            }
-
-            // สร้าง Notification รายคน + ยิง WebSocket (ผ่าน notificationService)
-            for (const u of allUsers) {
-              await createNotification(u.id, {
-                title: rule.type === 'GLOBAL' ? '🌐 Global Alert' : '⚠️ System Alert',
-                message: logMessage,
-                alertLogId: newLog.id
-              });
-            }
-          }
-
-          // อัปเดตเวลาที่ Trigger ล่าสุด
-          await prisma.alertRule.update({ 
-            where: { id: rule.id }, 
-            data: { lastTrigger: now } 
-          });
-        }
-      }
-    }
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Alert email sent to ${isMultiple ? emails.length + ' users' : emails}`);
   } catch (error) {
-    console.error("Error in checkSensorAlerts:", error);
+    console.error('Failed to send email:', error);
   }
 };
 
-const createAlertRule = async (user, data) => {
-  const isSpecType = data.type === 'SYSTEM' || data.type === 'GLOBAL';
-  if (isSpecType && user.role !== 'ADMIN') throw new Error("Admin only for SYSTEM/GLOBAL");
+const sendBroadcastEmail = async (emails, subject, message) => {
+  const mailOptions = {
+    from: `"UEC Weather System" <${process.env.SMTP_USER}>`,
+    bcc: emails.join(','), // ส่งแบบ BCC หาทุกคน
+    subject: `📢 ${subject}`,
+    html: `
+      <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="color: #3b82f6;">System Broadcast</h2>
+        <p style="font-size: 1.1em; line-height: 1.6;">${message}</p>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+        <p style="color: #888; font-size: 0.8em;">This is an automated system broadcast from UEC Weather Platform.</p>
+      </div>
+    `,
+  };
 
-  return await prisma.alertRule.create({
-    data: {
-      name: data.name,
-      note: data.note,
-      type: data.type,
-      condition: data.condition,
-      isActive: data.isActive !== undefined ? data.isActive : true,
-      userId: isSpecType ? null : user.id,
-      deviceId: data.type === 'GLOBAL' ? null : parseInt(data.deviceId),
-      sensorId: parseInt(data.sensorId),
-      threshold: parseFloat(data.threshold),
-      createdBy: user.id
-    }
-  });
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Broadcast email sent to ${emails.length} users.`);
+  } catch (error) {
+    console.error('Failed to send broadcast email:', error);
+    throw error;
+  }
 };
 
-const getUserAlerts = async (user) => {
-  const where = user.role === 'ADMIN' 
-    ? { OR: [{ userId: user.id }, { type: 'SYSTEM' }, { type: 'GLOBAL' }] }
-    : { userId: user.id };
-
-  return await prisma.alertRule.findMany({
-    where,
-    include: { device: { select: { name: true } }, sensor: { select: { name: true, unit: true } } },
-    orderBy: { createdAt: 'desc' }
-  });
-};
-
-const updateAlertRule = async (id, user, data) => {
-  const rule = await prisma.alertRule.findUnique({ where: { id: parseInt(id) } });
-  if (!rule || (user.role !== 'ADMIN' && rule.userId !== user.id)) throw new Error("Unauthorized");
-  
-  // ปรับข้อมูลก่อนอัปเดต (ถ้ามีการส่งมา)
-  const updateData = { ...data };
-  if (data.deviceId) updateData.deviceId = parseInt(data.deviceId);
-  if (data.sensorId) updateData.sensorId = parseInt(data.sensorId);
-  if (data.threshold) updateData.threshold = parseFloat(data.threshold);
-
-  return await prisma.alertRule.update({ where: { id: parseInt(id) }, data: updateData });
-};
-
-const deleteAlertRule = async (id, user) => {
-  const rule = await prisma.alertRule.findUnique({ where: { id: parseInt(id) } });
-  if (!rule) throw new Error("Not found");
-  if (user.role !== 'ADMIN' && rule.userId !== user.id) throw new Error("Unauthorized");
-  
-  return await prisma.alertRule.delete({ where: { id: parseInt(id) } });
-};
-
-module.exports = { 
-  checkSensorAlerts, 
-  createAlertRule, 
-  getUserAlerts, 
-  updateAlertRule, 
-  deleteAlertRule 
-};
+module.exports = { sendAlertEmail, sendBroadcastEmail };

@@ -162,4 +162,45 @@ router.post('/users/:id/force-logout', protect, authorize('ADMIN'), adminControl
 router.delete('/users/:id', protect, authorize('ADMIN'), adminController.deleteUser);
 
 
+// ─── Broadcast Message ─────────────────────────────
+/**
+ * @swagger
+ * /api/admin/broadcast:
+ *   post:
+ *     summary: Broadcast system message to all users (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - subject
+ *               - message
+ *             properties:
+ *               subject:
+ *                 type: string
+ *                 example: System Maintenance
+ *               message:
+ *                 type: string
+ *                 example: The system will be down tonight at 10 PM.
+ *               sendEmail:
+ *                 type: boolean
+ *                 default: true
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Broadcast sent successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin only
+ */
+router.post('/broadcast', protect, authorize('ADMIN'), adminController.broadcastMessage);
+
 module.exports = router;

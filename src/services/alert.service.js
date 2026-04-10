@@ -12,8 +12,15 @@ const checkSensorAlerts = async (deviceId, sensorsPayload) => {
     if (!device) return;
 
     const activeRules = await prisma.alertRule.findMany({
-      where: { isActive: true, OR: [{ deviceId: device.id }, { type: 'GLOBAL' }] },
-      include: { user: true, sensor: true }
+      where: {
+        isActive: true,
+        OR: [{ deviceId: device.id }, { type: 'GLOBAL' }]
+      },
+      // ดึงข้อมูล User และ Setting ออกมาด้วย
+      include: { 
+        user: { include: { setting: true } }, 
+        sensor: true 
+      }
     });
 
     for (const rule of activeRules) {
@@ -21,16 +28,24 @@ const checkSensorAlerts = async (deviceId, sensorsPayload) => {
       if (actualValue === undefined) continue;
 
       let isTriggered = false;
-      // ... logic condition (>, <, >=) เหมือนเดิม ...
+      switch (rule.condition) {
+        case '>': isTriggered = actualValue > rule.threshold; break;
+        case '<': isTriggered = actualValue < rule.threshold; break;
+        case '>=': isTriggered = actualValue >= rule.threshold; break;
+        case '<=': isTriggered = actualValue <= rule.threshold; break;
+        case '==': isTriggered = actualValue === rule.threshold; break;
+      }
 
       if (isTriggered) {
         const now = new Date();
         const diffMinutes = (now - (rule.lastTrigger || 0)) / (1000 * 60);
 
         if (diffMinutes >= COOLDOWN_MINUTES) {
-          // 1. Email Logic เหมือนเดิม
           
-          // 2. Save Alert Log
+          const logMessage = `[${rule.name}] ${rule.sensor.name} triggered: ${actualValue} ${rule.condition} ${rule.threshold}`;
+          const deviceDisplayName = device.name || device.deviceId;
+
+          // 1. บันทึก Log ทุกครั้งที่มีการ Trigger (เพื่อเป็นประวัติระบบ)
           const newLog = await prisma.alertLog.create({
             data: {
               ruleId: rule.id,
@@ -39,37 +54,65 @@ const checkSensorAlerts = async (deviceId, sensorsPayload) => {
               condition: rule.condition,
               threshold: rule.threshold,
               actualValue: actualValue,
-              message: `[${rule.name}] ${rule.sensor.name} triggered: ${actualValue} ${rule.condition} ${rule.threshold}`,
+              message: logMessage,
             }
           });
 
-          // 3. ✨ NEW: Create Notifications & WebSocket ✨
-          // ถ้าเป็น USER rule ส่งให้เจ้าของคนเดียว
-          if (rule.type === 'USER' && rule.userId) {
-            await createNotification(rule.userId, {
-              title: 'Sensor Alert',
-              message: newLog.message,
-              alertLogId: newLog.id
-            });
-          } else {
-            // ถ้าเป็น SYSTEM/GLOBAL ส่งให้ทุกคน (หรือเฉพาะ Admin ตามความต้องการ)
-            const users = await prisma.user.findMany({ select: { id: true } });
-            for (const u of users) {
-              await createNotification(u.id, {
-                title: rule.type === 'GLOBAL' ? 'Global Alert' : 'System Alert',
-                message: newLog.message,
+          // 2. Logic การส่งแจ้งเตือนตาม Setting
+          if (rule.type === 'USER' && rule.user) {
+            const user = rule.user;
+            const setting = user.setting || { enableEmailAlert: true, enableSystemNoti: true }; // default ถ้ายังไม่มี setting
+
+            // เช็ค Setting Email
+            if (setting.enableEmailAlert && user.email) {
+              await sendAlertEmail(user.email, deviceDisplayName, rule.sensor.name, rule.condition, rule.threshold, actualValue);
+            }
+
+            // เช็ค Setting System Notification
+            if (setting.enableSystemNoti) {
+              await createNotification(user.id, {
+                title: '🚨 Sensor Alert',
+                message: logMessage,
                 alertLogId: newLog.id
               });
             }
+
+          } else {
+            // กรณี SYSTEM / GLOBAL: ดึง User ทุกคนที่เปิดรับแจ้งเตือน
+            const usersWithSettings = await prisma.user.findMany({
+              include: { setting: true }
+            });
+
+            for (const u of usersWithSettings) {
+              const setting = u.setting || { enableEmailAlert: true, enableSystemNoti: true };
+
+              // ส่ง Email รายบุคคลถ้าเขาเปิดไว้
+              if (setting.enableEmailAlert && u.email) {
+                await sendAlertEmail(u.email, rule.type === 'GLOBAL' ? 'GLOBAL SYSTEM' : deviceDisplayName, rule.sensor.name, rule.condition, rule.threshold, actualValue);
+              }
+
+              // สร้าง Notification รายบุคคลถ้าเขาเปิดไว้
+              if (setting.enableSystemNoti) {
+                await createNotification(u.id, {
+                  title: rule.type === 'GLOBAL' ? '🌐 Global Alert' : '⚠️ System Alert',
+                  message: logMessage,
+                  alertLogId: newLog.id
+                });
+              }
+            }
           }
 
-          await prisma.alertRule.update({ where: { id: rule.id }, data: { lastTrigger: now } });
+          await prisma.alertRule.update({ 
+            where: { id: rule.id }, 
+            data: { lastTrigger: now } 
+          });
         }
       }
     }
-  } catch (error) { console.error(error); }
+  } catch (error) {
+    console.error("Error in checkSensorAlerts:", error);
+  }
 };
-
 
 const createAlertRule = async (user, data) => {
   const isSpecType = data.type === 'SYSTEM' || data.type === 'GLOBAL';
@@ -106,9 +149,27 @@ const getUserAlerts = async (user) => {
 };
 
 const updateAlertRule = async (id, user, data) => {
-  const rule = await prisma.alertRule.findUnique({ where: { id: parseInt(id) } });
-  if (!rule || (user.role !== 'ADMIN' && rule.userId !== user.id)) throw new Error("Unauthorized");
-  return await prisma.alertRule.update({ where: { id: parseInt(id) }, data });
+  const ruleId = parseInt(id);
+  
+  const rule = await prisma.alertRule.findUnique({ where: { id: ruleId } });
+  if (!rule || (user.role !== 'ADMIN' && rule.userId !== user.id)) {
+    throw new Error("Unauthorized");
+  }
+
+  const updateData = {
+    name: data.name,
+    note: data.note,
+    condition: data.condition,
+    isActive: data.isActive,
+    threshold: data.threshold !== undefined ? parseFloat(data.threshold) : undefined,
+    sensorId: data.sensorId !== undefined ? parseInt(data.sensorId) : undefined,
+    deviceId: data.deviceId !== undefined ? (data.deviceId ? parseInt(data.deviceId) : null) : undefined,
+  };
+
+  return await prisma.alertRule.update({
+    where: { id: ruleId },
+    data: updateData
+  });
 };
 
 const deleteAlertRule = async (id, user) => {

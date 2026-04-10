@@ -1,4 +1,25 @@
 const adminService = require('./admin.service');
+const broadcastService = require('../../services/broadcast.service');
+
+exports.broadcastMessage = async (req, res) => {
+  try {
+    const { subject, message, sendEmail } = req.body;
+    if (!subject || !message) throw new Error("Subject and message are required");
+
+    const count = await broadcastService.sendSystemBroadcast(req.user.id, {
+      subject,
+      message,
+      sendEmail
+    });
+
+    res.json({ 
+      status: 'success', 
+      message: `Broadcast sent successfully to ${count} users.` 
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'fail', message: err.message });
+  }
+};
 
 exports.getAllUsers = async (req, res) => {
   try {

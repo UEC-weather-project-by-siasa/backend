@@ -39,15 +39,32 @@ const register = async (userData) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      password: hashedPassword,
-      profilePicture: profilePicture || null,
-      role: role || 'USER',
-    },
-    select: { id: true, name: true, email: true, role: true, createdAt: true },
+  const user = await prisma.$transaction(async (tx) => {
+    const newUser = await tx.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        profilePicture: profilePicture || null,
+        role: role || 'USER',
+        // สร้าง Setting เริ่มต้นที่นี่เลย
+        setting: {
+          create: {
+            enableEmailAlert: true,   // ค่าเริ่มต้นเปิดไว้
+            enableSystemNoti: true,   // ค่าเริ่มต้นเปิดไว้
+          }
+        }
+      },
+      select: { 
+        id: true, 
+        name: true, 
+        email: true, 
+        role: true, 
+        createdAt: true,
+        setting: true 
+      },
+    });
+    return newUser;
   });
 
   return user;
@@ -152,6 +169,21 @@ const deleteMe = async (userId) => {
 };
 
 
+// ---- setting ------------
+const getMySettings = async (userId) => {
+  return await prisma.userSetting.findUnique({ where: { userId } });
+};
+
+const updateMySettings = async (userId, data) => {
+  return await prisma.userSetting.update({
+    where: { userId },
+    data: {
+      enableEmailAlert: data.enableEmailAlert,
+      enableSystemNoti: data.enableSystemNoti,
+    }
+  });
+};
+
 
 module.exports = {
   register,
@@ -161,5 +193,7 @@ module.exports = {
   getMe,
   updateProfile,
   changePassword,
-  deleteMe,       
+  deleteMe, 
+  getMySettings,
+  updateMySettings,      
 };

@@ -40,6 +40,7 @@ model User {
   devices        Device[]
   alertRules     AlertRule[]
   notifications  Notification[]
+  setting        UserSetting?
   
   createdAt      DateTime @default(now())
 }
@@ -196,4 +197,15 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+model UserSetting {
+  id                 Int      @id @default(autoincrement())
+  userId             Int      @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  enableEmailAlert   Boolean  @default(true)  // เปิด/ปิด Email
+  enableSystemNoti   Boolean  @default(true)  // เปิด/ปิด Notification ในเว็บ/แอป
+  
+  updatedAt          DateTime @updatedAt
 }

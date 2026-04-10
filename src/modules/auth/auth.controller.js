@@ -86,3 +86,22 @@ exports.deleteMe = async (req, res) => {
 };
 
 
+// -------- setting --------
+
+exports.getMySettings = async (req, res) => {
+  try {
+    const data = await authService.getMySettings(req.user.id);
+    res.json({ status: 'success', data });
+  } catch (error) {
+    res.status(400).json({ status: 'fail', message: error.message });
+  }
+};
+
+exports.updateMySettings = async (req, res) => {
+  try {
+    const data = await authService.updateMySettings(req.user.id, req.body);
+    res.json({ status: 'success', data });
+  } catch (error) {
+    res.status(400).json({ status: 'fail', message: error.message });
+  }
+};

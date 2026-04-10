@@ -178,4 +178,64 @@ router.patch('/change-password', protect, authController.changePassword);
  */
 router.delete('/me', protect, authController.deleteMe);
 
+
+/**
+ * @swagger
+ * /api/auth/settings:
+ *   get:
+ *     summary: Get my settings
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User settings
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     enableEmailAlert:
+ *                       type: boolean
+ *                       example: true
+ *                     enableSystemNoti:
+ *                       type: boolean
+ *                       example: true
+ */
+router.get('/settings', protect, authController.getMySettings);
+
+
+/**
+ * @swagger
+ * /api/auth/settings:
+ *   patch:
+ *     summary: Update my settings
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               enableEmailAlert:
+ *                 type: boolean
+ *                 example: true
+ *               enableSystemNoti:
+ *                 type: boolean
+ *                 example: false
+ *     responses:
+ *       200:
+ *         description: Settings updated successfully
+ */
+router.patch('/settings', protect, authController.updateMySettings);
+
+
 module.exports = router;
