@@ -19,6 +19,17 @@ const { protect } = require('../../middleware/auth.middleware');
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *      - in: query
+ *        name: page
+ *        schema:
+ *          type: integer
+ *        description: Page number
+ *      - in: query
+ *        name: limit
+ *        schema:
+ *          type: integer
+ *        description: Number of notifications per page
  *     responses:
  *       200:
  *         description: List of user notifications

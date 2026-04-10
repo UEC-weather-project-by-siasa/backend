@@ -13,12 +13,32 @@ const createNotification = async (userId, data) => {
   return noti;
 };
 
-const getMyNotifications = async (userId) => {
-  return await prisma.notification.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-    take: 50
-  });
+const getMyNotifications = async (userId, query) => {
+  const page = parseInt(query.page) || 1;
+  const limit = parseInt(query.limit) || 20;
+  const skip = (page - 1) * limit;
+
+  const where = { userId: parseInt(userId) };
+
+  const [notifications, total] = await Promise.all([
+    prisma.notification.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' }, // เรียงล่าสุดมาก่อน
+    }),
+    prisma.notification.count({ where })
+  ]);
+
+  return {
+    data: notifications,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    }
+  };
 };
 
 const clearMyNotifications = async (userId) => {
