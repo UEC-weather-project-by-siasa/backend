@@ -71,6 +71,10 @@ services:
       - JWT_REFRESH_SECRET=UECWeatherRefreshSecretKey
       - MQTT_USER=backend
       - MQTT_PASS=backend_secret
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=465
+      - SMTP_USER=66010324@kmitl.ac.th
+      - SMTP_PASS=udnw szky sxrq pckv
     volumes:
       - .:/app
       - /app/node_modules

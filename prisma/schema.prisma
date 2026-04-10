@@ -22,6 +22,12 @@ enum LogLevel {
   ERROR
 }
 
+enum AlertType {
+  USER      // user สร้างเอง
+  SYSTEM    // admin สร้าง แจ้งเฉพาะ device
+  GLOBAL    // admin แจ้งทุกคน
+}
+
 model User {
   id             Int      @id @default(autoincrement())
   name           String
@@ -30,7 +36,11 @@ model User {
   password       String
   role           Role     @default(USER) 
   tokenVersion   Int      @default(0)
+
   devices        Device[]
+  alertRules     AlertRule[]
+  notifications  Notification[]
+  
   createdAt      DateTime @default(now())
 }
 
@@ -54,6 +64,8 @@ model Device {
 
   sensors     DeviceSensor[]
   logs        DeviceLog[]   // 👈 เพิ่มตรงนี้
+  alertRules  AlertRule[]
+  alertLogs   AlertLog[]
 
   createdAt   DateTime @default(now())
 
@@ -69,6 +81,7 @@ model Sensor {
   brand     String? // เช่น Bosch
 
   devices   DeviceSensor[]
+  alertRules     AlertRule[]
 }
 
 model DeviceSensor {
@@ -105,4 +118,82 @@ model DeviceLog {
   @@index([deviceId])
   @@index([createdAt])
   @@index([level]) 
+}
+
+model AlertRule {
+  id          Int      @id @default(autoincrement())
+
+  // 👇 เพิ่มใหม่
+  name        String
+  note        String?
+  type        AlertType @default(USER)
+
+  // USER Alert จะมี userId
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      Int?
+
+  // GLOBAL Alert อาจไม่ต้องมี device
+  device      Device?   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId    Int?
+
+  sensor      Sensor?   @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  sensorId    Int?
+
+  condition   String
+  threshold   Float
+
+  isActive    Boolean  @default(true)
+  lastTrigger DateTime?
+
+  createdBy   Int?     // admin ที่สร้าง
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  alertLogs   AlertLog[]
+
+  @@index([deviceId])
+  @@index([userId])
+  @@index([type])
+}
+
+
+model AlertLog {
+  id          Int       @id @default(autoincrement())
+  
+  alertRule   AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  ruleId      Int
+
+  device      Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId    Int
+
+  sensorName  String    // เผื่อไว้แสดงผลเร็วๆ โดยไม่ต้อง join
+  condition   String
+  threshold   Float
+  actualValue Float
+  message     String    // ข้อความอธิบายเช่น "High Temp Warning: temperature triggered: 36 > 35"
+  isRead      Boolean   @default(false) // เผื่อทำระบบ Mark as read ในหน้าเว็บ
+
+  createdAt   DateTime  @default(now())
+
+  @@index([ruleId])
+  @@index([deviceId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title     String
+  message   String
+  type      String   @default("ALERT") // ALERT, SYSTEM, etc.
+  isRead    Boolean  @default(false)
+  
+  // เชื่อมโยงกับ AlertLog เผื่ออยากกดไปดูรายละเอียด
+  alertLogId Int?
+  
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

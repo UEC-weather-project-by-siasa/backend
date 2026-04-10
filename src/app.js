@@ -14,6 +14,8 @@ const systemRoutes = require('./modules/system/system.routes');
 const mqttAuthRoutes = require('./modules/mqtt/mqtt.auth.routes');
 const searchRoutes = require("./modules/search/search.routes");
 const uploadRoutes = require("./modules/upload/upload.routes");
+const alertRoutes = require('./modules/alert/alert.routes');
+const alertLogRoutes = require('./modules/alertLog/alertLog.routes');
 
 const app = express();
 
@@ -48,6 +50,8 @@ app.use('/api/telemetry', telemetryRoutes);
 app.use('/api/system', systemRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use('/api/alerts', alertRoutes);
+app.use('/api/alert-logs', alertLogRoutes);
 
 // ─── Upload ───
 app.use("/uploads", express.static("uploads"));

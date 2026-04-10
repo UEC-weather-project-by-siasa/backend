@@ -2,6 +2,7 @@ const client = require('./mqtt.client');
 const { writeApi, Point } = require('../config/influx'); // ← import InfluxDB
 const { getIO } = require('../socket/socket');
 const prisma = require('../config/db');
+const { checkSensorAlerts } = require('../services/alert.service');
 
 // ─────────────────────────────────────────────
 // Cache
@@ -167,6 +168,8 @@ const handleMessages = () => {
 
       // สำหรับหน้าเจาะจงรายเครื่อง (Frontend ฟังเฉพาะ id ตัวเอง)
       io.emit(`device:update:${deviceId}`, deviceUpdate);
+
+      checkSensorAlerts(deviceId, sensorsPayload).catch(err => console.error(err));
 
       await updateDeviceOnline(deviceId, true);
     }
