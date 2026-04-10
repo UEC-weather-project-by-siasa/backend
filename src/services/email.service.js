@@ -18,9 +18,9 @@ const sendAlertEmail = async (emails, deviceName, sensorName, condition, thresho
     from: `"UEC Weather Alert" <${process.env.SMTP_USER}>`,
     to: isMultiple ? undefined : emails,      // ถ้าคนเดียวใส่ To
     bcc: isMultiple ? emails.join(',') : undefined, // ถ้าหลายคนใส่ BCC
-    subject: `⚠️ System Alert: ${deviceName} - ${sensorName} is out of range!`,
+    subject: `System Alert: ${deviceName} - ${sensorName} is out of range!`,
     html: `
-      <h2>🚨 Sensor Alert Triggered</h2>
+      <h2>Sensor Alert Triggered</h2>
       <p><strong>Device:</strong> ${deviceName}</p>
       <p><strong>Sensor:</strong> ${sensorName}</p>
       <p><strong>Condition:</strong> ${condition} ${threshold}</p>
@@ -32,7 +32,7 @@ const sendAlertEmail = async (emails, deviceName, sensorName, condition, thresho
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`📧 Alert email sent to ${isMultiple ? emails.length + ' users' : emails}`);
+    console.log(`Alert email sent to ${isMultiple ? emails.length + ' users' : emails}`);
   } catch (error) {
     console.error('Failed to send email:', error);
   }
@@ -42,7 +42,7 @@ const sendBroadcastEmail = async (emails, subject, message) => {
   const mailOptions = {
     from: `"UEC Weather System" <${process.env.SMTP_USER}>`,
     bcc: emails.join(','), // ส่งแบบ BCC หาทุกคน
-    subject: `📢 ${subject}`,
+    subject: `${subject}`,
     html: `
       <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
         <h2 style="color: #3b82f6;">System Broadcast</h2>
@@ -55,7 +55,7 @@ const sendBroadcastEmail = async (emails, subject, message) => {
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`📧 Broadcast email sent to ${emails.length} users.`);
+    console.log(`Broadcast email sent to ${emails.length} users.`);
   } catch (error) {
     console.error('Failed to send broadcast email:', error);
     throw error;
