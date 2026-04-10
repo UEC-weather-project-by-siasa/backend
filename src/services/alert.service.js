@@ -77,7 +77,13 @@ const createAlertRule = async (user, data) => {
 
   return await prisma.alertRule.create({
     data: {
-      ...data,
+      name: data.name,           // ระบุทีละตัวเพื่อความชัวร์
+      note: data.note,
+      type: data.type,
+      condition: data.condition,
+      isActive: data.isActive !== undefined ? data.isActive : true,
+      
+      // จัดการเรื่องความสัมพันธ์และตัวเลข
       userId: isSpecType ? null : user.id,
       deviceId: data.type === 'GLOBAL' ? null : parseInt(data.deviceId),
       sensorId: parseInt(data.sensorId),

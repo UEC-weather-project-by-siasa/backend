@@ -73,12 +73,6 @@ router.delete('/', protect, alertLogController.clearMyLogs);
  *     tags: [AlertLogs]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: deviceId
- *         schema:
- *           type: integer
- *         description: Delete logs only for a specific Device ID
  *     responses:
  *       200:
  *         description: Logs successfully deleted
