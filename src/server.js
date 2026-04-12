@@ -2,6 +2,7 @@ const http = require('http');
 const app = require('./app');
 const socketConfig = require('./socket/socket');
 const mqttHandler = require('./mqtt/mqtt.handler');
+const initAiCron = require('./modules/ai/ai.cron');
 require('dotenv').config();
 
 const server = http.createServer(app);
@@ -16,4 +17,6 @@ const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Docs available at http://localhost:${PORT}/api-docs`);
+  initAiCron();
+  console.log('AI Weather Cron Job Started');
 });

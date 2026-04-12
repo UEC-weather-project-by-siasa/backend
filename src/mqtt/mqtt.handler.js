@@ -161,7 +161,7 @@ const handleMessages = () => {
         lastUpdate: new Date()
       };
 
-      console.log(`MQTT Data Received: ${deviceId} →`, deviceUpdate);
+      // console.log(`MQTT Data Received: ${deviceId} →`, deviceUpdate);
 
       // สำหรับหน้า Dashboard รวม (ทุกคนเห็นเหมือนกัน)
       io.emit('device:update:all', deviceUpdate);

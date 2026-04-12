@@ -75,6 +75,7 @@ services:
       - SMTP_PORT=465
       - SMTP_USER=66010324@kmitl.ac.th
       - SMTP_PASS=udnw szky sxrq pckv
+      - GEMINI_API_KEY=AIzaSyBxyjeK7iWFe5ZkPwSMmEPKptlZAZh_kT0
     volumes:
       - .:/app
       - /app/node_modules

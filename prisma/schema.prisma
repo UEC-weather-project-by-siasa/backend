@@ -64,9 +64,10 @@ model Device {
   longitude   Float?
 
   sensors     DeviceSensor[]
-  logs        DeviceLog[]   // 👈 เพิ่มตรงนี้
+  logs        DeviceLog[]   
   alertRules  AlertRule[]
   alertLogs   AlertLog[]
+  predictions WeatherPrediction[]   
 
   createdAt   DateTime @default(now())
 
@@ -208,4 +209,27 @@ model UserSetting {
   enableSystemNoti   Boolean  @default(true)  // เปิด/ปิด Notification ในเว็บ/แอป
   
   updatedAt          DateTime @updatedAt
+}
+
+model WeatherPrediction {
+  id              Int      @id @default(autoincrement())
+  deviceId        Int
+  device          Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  aiModel         String   // ชื่อโมเดลที่ใช้ทำนาย เช่น "Gemini-1.5-Pro"
+
+  
+  InputData       Json     // ข้อมูลที่ใช้ในการทำนาย (เช่น สภาพอากาศปัจจุบัน, ข้อมูลเซ็นเซอร์)  
+  predictionOutput  Json   // ข้อมูลเพิ่มเติมจากการทำนาย เช่น { "confidence": 0.85, "trend": "rising" }   
+
+  predictFor      DateTime // จะเกิดค่านี้ประมานตอนกี่โมง (เช่น อีก 15 นาทีข้างหน้า)
+
+  aiDecision      String?  @db.Text // การตัดสินใจของ ai เช่น "ควรแจ้งเตือนผู้ใช้", "ไม่ต้องทำอะไร"
+  aiSuggestion    String?  @db.Text // ข้อเสนอแนะจาก ai เช่น "แนะนำให้เปิดพัดลม", "แนะนำให้ตรวจสอบอุปกรณ์"
+  aiInsight       String?  @db.Text // สรุปจาก ai
+  
+  createdAt       DateTime @default(now())
+
+  @@index([deviceId])
+  @@index([createdAt])
 }

@@ -28,7 +28,7 @@ const init = (httpServer) => {
       }
     }
 
-    console.log(`Socket Connected: ${socket.id}`);
+    // console.log(`Socket Connected: ${socket.id}`);
     socket.on('disconnect', () => console.log('Socket Disconnected'));
   });
 
