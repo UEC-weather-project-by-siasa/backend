@@ -3,6 +3,7 @@ const router = express.Router();
 const aiController = require('./ai.controller');
 const { protect } = require('../../middleware/auth.middleware');
 const { authorize } = require('../../middleware/role.middleware');
+const { chatRateLimiter, checkDailyQuota } = require('../../middleware/aiLimit.middleware');
 
 /**
  * @swagger
@@ -23,20 +24,6 @@ const { authorize } = require('../../middleware/role.middleware');
  *     responses:
  *       200:
  *         description: AI Prediction completed
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: AI Bulk Prediction triggered successfully
- *                 count:
- *                   type: number
- *                   example: 5
  *       401:
  *         description: Unauthorized
  *       403:
@@ -76,12 +63,13 @@ router.post(
  *         name: deviceId
  *         schema:
  *           type: string
+ *           example: DEVICE001
  *
  *       - in: query
  *         name: q
  *         schema:
  *           type: string
- *         description: Search AI insight / suggestion
+ *         description: Search AI insight or suggestion
  *
  *       - in: query
  *         name: decision
@@ -122,6 +110,105 @@ router.delete(
   protect,
   authorize('ADMIN'),
   aiController.deleteAllPredictions
+);
+
+
+
+/**
+ * @swagger
+ * /api/ai/logs:
+ *   get:
+ *     summary: Get AI Chat Logs (Pagination + Search)
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: number
+ *           example: 1
+ *
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: number
+ *           example: 10
+ *
+ *       - in: query
+ *         name: q
+ *         schema:
+ *           type: string
+ *         description: Search question or answer
+ *
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.get('/logs', protect, aiController.getLogs);
+
+
+
+/**
+ * @swagger
+ * /api/ai/logs:
+ *   delete:
+ *     summary: Delete AI Logs (Single or All)
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: id
+ *         schema:
+ *           type: number
+ *         description: Log ID (optional - delete single log)
+ *
+ *     responses:
+ *       200:
+ *         description: Logs deleted
+ */
+router.delete('/logs', protect, aiController.clearLogs);
+
+
+
+/**
+ * @swagger
+ * /api/ai/ask:
+ *   post:
+ *     summary: Ask AI Weather Assistant
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - question
+ *             properties:
+ *               question:
+ *                 type: string
+ *                 example: วันนี้ฝนจะตกไหม
+ *
+ *               deviceId:
+ *                 type: number
+ *                 example: 1
+ *
+ *     responses:
+ *       200:
+ *         description: AI response
+ *       429:
+ *         description: Rate limit exceeded
+ */
+router.post(
+  '/ask',
+  protect,
+  chatRateLimiter,
+  checkDailyQuota,
+  aiController.handleAskAI
 );
 
 

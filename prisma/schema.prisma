@@ -41,6 +41,7 @@ model User {
   alertRules     AlertRule[]
   notifications  Notification[]
   setting        UserSetting?
+  aiAskLogs AiAskLog[]
   
   createdAt      DateTime @default(now())
 }
@@ -68,6 +69,7 @@ model Device {
   alertRules  AlertRule[]
   alertLogs   AlertLog[]
   predictions WeatherPrediction[]   
+  aiAskLogs AiAskLog[]
 
   createdAt   DateTime @default(now())
 
@@ -231,5 +233,28 @@ model WeatherPrediction {
   createdAt       DateTime @default(now())
 
   @@index([deviceId])
+  @@index([createdAt])
+}
+
+
+model AiAskLog {
+  id          Int      @id @default(autoincrement())
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deviceId    Int?
+  device      Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  question    String   @db.Text
+  answer      String   @db.Text
+  
+  tokensUsed  Int?
+  
+  status      String   @default("SUCCESS")
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
   @@index([createdAt])
 }

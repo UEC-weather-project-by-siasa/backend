@@ -66,37 +66,42 @@ const runBulkWeatherPredictionByAIModel = async () => {
     });
 
     const prompt = `
-      คุณคือผู้เชี่ยวชาญด้านอุตุนิยมวิทยาและ AI วิเคราะห์ข้อมูล IoT (UEC Weather)
-      
-      ข้อมูล Input (JSON): 
-      ${JSON.stringify(batchInput)}
-      
-      เงื่อนไขการวิเคราะห์:
-      1. historyData: ในแต่ละเซ็นเซอร์ ข้อมูลเป็น Array [t-60, t-55, ..., t-5, t-0] 
-        **เรียงจาก อดีต (Index 0) ไปหา ปัจจุบัน (Index สุดท้าย)** เก็บทุกๆ 5 นาที
-      2. units: ใช้หน่วยที่ระบุในฟิลด์นี้ในการวิเคราะห์ความรุนแรงของค่าที่ได้รับ
-      3. location: ใช้พิกัดทางภูมิศาสตร์เพื่อประเมินสภาพแวดล้อมท้องถิ่น (เช่น ใกล้ทะเล, บนเขา, เขตเมือง)
+    You are an expert in meteorology and AI analyzing IoT weather data (UEC Weather).
 
-      งานของคุณ:
-      - วิเคราะห์ Trend (Rising/Stable/Falling) จากลำดับข้อมูล
-      - พยากรณ์ค่า 'next_values' ของทุกเซ็นเซอร์ในอีก 15 นาทีข้างหน้า
-      - aiDecision: เลือกตอบจาก [none, alert_warning, alert_critical] ตามความรุนแรงของการเปลี่ยนแปลงและค่าที่คาดการณ์
-      - aiSuggestion: คำแนะนำสั้นๆ สำหรับผู้ใช้ (เช่น "ควรปิดหน้าต่าง", "พกเสื้อกันฝน")
-      - aiInsight: สรุปสภาวะและความเปลี่ยนแปลงที่สำคัญ (ภาษาไทย) **เน้นใจความสำคัญ ไม่ต้องทวนตัวเลขทั้งหมด**
+    Input Data (JSON): 
+    ${JSON.stringify(batchInput)}
 
-      **ตอบกลับเป็น JSON ARRAY เท่านั้น ห้ามมีคำอธิบายอื่น**
-        โครงสร้าง Output:
-        [{
-            "internalId": number,
-            "predictionOutput": { 
+    Analysis Conditions:
+    1. historyData: Each sensor contains an array of values [t-60, t-55, ..., t-5, t-0]
+      **Ordered from past (Index 0) to present (last index)** with 5-minute intervals
+    2. units: Use the provided sensor units to evaluate the severity of values
+    3. location: Use geographic coordinates to assess local environmental context 
+      (e.g., near sea, mountain, urban area)
+
+    Your Tasks:
+    - Analyze the Trend (Rising / Stable / Falling) from historical data
+    - Predict 'next_values' for each sensor for the next 15-30 minutes
+    - aiDecision: Choose one from [none, alert_warning, alert_critical] 
+      based on severity and predicted values
+    - aiSuggestion: Provide a short recommendation for users 
+      (e.g., "Close windows", "Prepare for rain")
+    - aiInsight: Provide a concise summary of the weather condition and important changes 
+      (Write in English language, focus on key insights, avoid repeating numbers)
+
+    Return JSON ARRAY ONLY. No additional explanation.
+
+    Output Format:
+    [{
+        "internalId": number,
+        "predictionOutput": { 
             "confidence": float (0.0 - 1.0), 
             "trend": "rising" | "stable" | "falling", 
             "next_values": { "sensor_name": value } 
-            },
-            "aiDecision": "string",
-            "aiSuggestion": "string",
-            "aiInsight": "string"
-        }]
+        },
+        "aiDecision": "string",
+        "aiSuggestion": "string",
+        "aiInsight": "string"
+    }]
     `;
 
     // console.log(prompt); // Debug: ดู Prompt ที่ส่งไปยัง AI
@@ -139,4 +144,138 @@ const runBulkWeatherPredictionByAIModel = async () => {
   }
 };
 
-module.exports = { runBulkWeatherPredictionByAIModel };
+const askWeatherAI = async (userId, userQuestion, deviceId = null) => {
+  let weatherSummary = [];
+
+  try {
+    if (deviceId) {
+      const device = await prisma.device.findUnique({
+        where: { deviceId: deviceId },
+        select: { deviceId: true, name: true }
+      });
+      
+      if (device) {
+        const data = await getDeviceHistorySummary(device.deviceId, "-24h", "1h");
+        if (Object.keys(data).length > 0) {
+          weatherSummary.push({ deviceId: device.deviceId, name: device.name, data });
+        }
+      }
+    } else {
+      const allDevices = await prisma.device.findMany({
+        select: { deviceId: true, name: true }
+      });
+
+      const historyPromises = allDevices.map(async (d) => {
+        const data = await getDeviceHistorySummary(d.deviceId, "-24h", "1h");
+        if (Object.keys(data).length > 0) {
+          return { deviceId: d.deviceId, name: d.name, data };
+        }
+        return null;
+      });
+
+      const results = await Promise.all(historyPromises);
+      weatherSummary = results.filter(res => res !== null);
+    }
+
+    console.log(`📊 Collected data from ${weatherSummary.length} devices for AI`);
+
+    if (weatherSummary.length === 0) return "ขออภัยครับ ไม่พบข้อมูลสภาพอากาศจากอุปกรณ์ใดๆ ในระบบเลย";
+
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    
+    const prompt = `
+      คุณคือ AI วิเคราะห์ข้อมูลสภาพอากาศอัจฉริยะ (UEC Weather Platform)
+      นี่คือข้อมูลสรุปรายชั่วโมงย้อนหลัง 24 ชม. จากอุปกรณ์ทั้งหมดในระบบ:
+      ${JSON.stringify(weatherSummary)}
+      
+      คำถามจากผู้ใช้: "${userQuestion}"
+      
+      ข้อกำหนดในการตอบ:
+      1. หากคำถามเกี่ยวกับแนวโน้ม ให้วิเคราะห์จากข้อมูล History ที่ให้ไป
+      2. หากมีการเปรียบเทียบระหว่างอุปกรณ์ (เช่น สถานีไหนร้อนกว่า) ให้ระบุชื่ออุปกรณ์ให้ชัดเจน
+      3. ตอบเป็นภาษาไทย สุภาพ สรุปเข้าใจง่าย และมีความเป็นมืออาชีพ
+    `;
+
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+
+  } catch (error) {
+    console.error("❌ AskWeatherAI Error:", error);
+    return "เกิดข้อผิดพลาดในการประมวลผลคำถามของคุณ กรุณาลองใหม่อีกครั้ง";
+  }
+};
+
+/**
+ * Helper: ดึงข้อมูลสรุปรายชั่วโมง (เพื่อไม่ให้ Token เกินตอน Chat)
+ */
+const getDeviceHistorySummary = async (deviceId, range, interval) => {
+  const query = `
+    from(bucket: "${process.env.INFLUX_BUCKET}")
+      |> range(start: ${range})
+      |> filter(fn: (r) => r._measurement == "sensor_reading")
+      |> filter(fn: (r) => r.device_id == "${deviceId}")
+      |> aggregateWindow(every: ${interval}, fn: mean, createEmpty: false)
+  `;
+  const results = {};
+  try {
+    for await (const { values, tableMeta } of queryApi.iterateRows(query)) {
+      const o = tableMeta.toObject(values);
+      if (!results[o.sensor]) results[o.sensor] = [];
+      results[o.sensor].push({ time: o._time, value: o._value.toFixed(2) });
+    }
+  } catch (err) { console.error(err); }
+  return results;
+};
+
+const getAiLogs = async (userId, { page = 1, limit = 10, search = "" }) => {
+  const skip = (page - 1) * limit;
+
+  const where = {
+    userId: userId,
+    OR: [
+      { question: { contains: search, mode: 'insensitive' } },
+      { answer: { contains: search, mode: 'insensitive' } }
+    ]
+  };
+
+  const [logs, total] = await Promise.all([
+    prisma.aiAskLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: parseInt(limit),
+      include: { device: { select: { name: true } } }
+    }),
+    prisma.aiAskLog.count({ where })
+  ]);
+
+  return {
+    logs,
+    pagination: {
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(total / limit)
+    }
+  };
+};
+
+const deleteAiLogs = async (userId, logId = null) => {
+  if (logId) {
+    // ลบเฉพาะรายการ
+    return await prisma.aiAskLog.deleteMany({
+      where: { id: parseInt(logId), userId: userId }
+    });
+  }
+  // ลบทั้งหมดของ User คนนั้น
+  return await prisma.aiAskLog.deleteMany({
+    where: { userId: userId }
+  });
+};
+
+module.exports = { 
+  runBulkWeatherPredictionByAIModel, 
+  askWeatherAI,
+  getAiLogs,
+  deleteAiLogs
+};
