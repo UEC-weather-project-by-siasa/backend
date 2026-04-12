@@ -177,23 +177,26 @@ const askWeatherAI = async (userId, userQuestion, deviceId = null) => {
       weatherSummary = results.filter(res => res !== null);
     }
 
-    console.log(`📊 Collected data from ${weatherSummary.length} devices for AI`);
+    console.log(`Collected data from ${weatherSummary.length} devices for AI`);
 
     if (weatherSummary.length === 0) return "ขออภัยครับ ไม่พบข้อมูลสภาพอากาศจากอุปกรณ์ใดๆ ในระบบเลย";
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     
     const prompt = `
-      คุณคือ AI วิเคราะห์ข้อมูลสภาพอากาศอัจฉริยะ (UEC Weather Platform)
-      นี่คือข้อมูลสรุปรายชั่วโมงย้อนหลัง 24 ชม. จากอุปกรณ์ทั้งหมดในระบบ:
-      ${JSON.stringify(weatherSummary)}
-      
-      คำถามจากผู้ใช้: "${userQuestion}"
-      
-      ข้อกำหนดในการตอบ:
-      1. หากคำถามเกี่ยวกับแนวโน้ม ให้วิเคราะห์จากข้อมูล History ที่ให้ไป
-      2. หากมีการเปรียบเทียบระหว่างอุปกรณ์ (เช่น สถานีไหนร้อนกว่า) ให้ระบุชื่ออุปกรณ์ให้ชัดเจน
-      3. ตอบเป็นภาษาไทย สุภาพ สรุปเข้าใจง่าย และมีความเป็นมืออาชีพ
+    You are an intelligent weather data analysis AI (UEC Weather Platform).
+
+    Here is the hourly summary data for the past 24 hours from all devices in the system:
+    ${JSON.stringify(weatherSummary)}
+
+    User Question: "${userQuestion}"
+
+    Response Requirements:
+    1. If the question is about trends, analyze using the provided historical data
+    2. If comparing devices (e.g., which station is hotter), clearly mention device names
+    3. Respond in English, professional, concise, and easy to understand
+    4. If some devices have missing or offline data, inform the user
+    5. Provide helpful and practical insights when possible
     `;
 
     const result = await model.generateContent(prompt);
@@ -205,9 +208,6 @@ const askWeatherAI = async (userId, userQuestion, deviceId = null) => {
   }
 };
 
-/**
- * Helper: ดึงข้อมูลสรุปรายชั่วโมง (เพื่อไม่ให้ Token เกินตอน Chat)
- */
 const getDeviceHistorySummary = async (deviceId, range, interval) => {
   const query = `
     from(bucket: "${process.env.INFLUX_BUCKET}")
