@@ -241,7 +241,6 @@ router.post(
  */
 router.get(
   '/predictions/last',
-  protect,
   aiController.getLastPredictions
 );
 

@@ -25,7 +25,7 @@ const { authorize } = require('../../middleware/role.middleware');
  *       200:
  *         description: List of all devices
  */
-router.get('/', protect, deviceController.getDevices);
+router.get('/', deviceController.getDevices);
 
 /**
  * @swagger
