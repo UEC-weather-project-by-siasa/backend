@@ -195,14 +195,14 @@ const askWeatherAI = async (userId, userQuestion, deviceId = null) => {
     Response Requirements:
     1. If the question is about trends, analyze using the provided historical data
     2. If comparing devices (e.g., which station is hotter), clearly mention device names
-    3. Respond in English, professional, concise, and easy to understand
+    3. Respond in English or Same Question Language , professional, concise, and easy to understand
     4. If some devices have missing or offline data, inform the user
     5. Provide helpful and practical insights when possible
     `;
 
-    // const result = await model.generateContent(prompt);
-    // return result.response.text();
-    return "ฟีเจอร์นี้กำลังอยู่ในระหว่างการพัฒนาและทดสอบครับ โปรดรอการอัปเดตในเร็วๆ นี้!";
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+    // return "ฟีเจอร์นี้กำลังอยู่ในระหว่างการพัฒนาและทดสอบครับ โปรดรอการอัปเดตในเร็วๆ นี้!";
 
   } catch (error) {
     console.error("❌ AskWeatherAI Error:", error);
