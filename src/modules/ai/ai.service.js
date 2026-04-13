@@ -106,37 +106,37 @@ const runBulkWeatherPredictionByAIModel = async () => {
 
     // console.log(prompt); // Debug: ดู Prompt ที่ส่งไปยัง AI
 
-    // const result = await model.generateContent(prompt);
-    // const aiResponse = JSON.parse(result.response.text());
+    const result = await model.generateContent(prompt);
+    const aiResponse = JSON.parse(result.response.text());
 
-    // const predictionData = aiResponse.map(res => {
-    //   const original = batchInput.find(b => b.internalId === res.internalId);
+    const predictionData = aiResponse.map(res => {
+      const original = batchInput.find(b => b.internalId === res.internalId);
       
-    //   const currentSnapshot = {};
-    //   Object.keys(original.historyData).forEach(key => {
-    //     const arr = original.historyData[key];
-    //     currentSnapshot[key] = arr[arr.length - 1];
-    //   });
+      const currentSnapshot = {};
+      Object.keys(original.historyData).forEach(key => {
+        const arr = original.historyData[key];
+        currentSnapshot[key] = arr[arr.length - 1];
+      });
 
-    //   return {
-    //     deviceId: res.internalId,
-    //     aiModel: "Gemini-2.5-Flash",
-    //     InputData: currentSnapshot, 
-    //     predictionOutput: res.predictionOutput,
-    //     predictFor: new Date(Date.now() + 15 * 60000),
-    //     aiDecision: res.aiDecision,
-    //     aiSuggestion: res.aiSuggestion,
-    //     aiInsight: res.aiInsight
-    //   };
-    // });
+      return {
+        deviceId: res.internalId,
+        aiModel: "Gemini-2.5-Flash",
+        InputData: currentSnapshot, 
+        predictionOutput: res.predictionOutput,
+        predictFor: new Date(Date.now() + 15 * 60000),
+        aiDecision: res.aiDecision,
+        aiSuggestion: res.aiSuggestion,
+        aiInsight: res.aiInsight
+      };
+    });
 
-    // // บันทึกแบบ Bulk ลง Postgres
-    // if (predictionData.length > 0) {
-    //   await prisma.weatherPrediction.createMany({ data: predictionData });
-    // }
+    // บันทึกแบบ Bulk ลง Postgres
+    if (predictionData.length > 0) {
+      await prisma.weatherPrediction.createMany({ data: predictionData });
+    }
 
     // console.log(`Bulk Prediction completed for ${predictionData.length} devices.`);
-    // return aiResponse;
+    return aiResponse;
     return "ฟีเจอร์นี้กำลังอยู่ในระหว่างการพัฒนาและทดสอบครับ โปรดรอการอัปเดตในเร็วๆ นี้!";
 
   } catch (error) {
@@ -180,7 +180,7 @@ const askWeatherAI = async (userId, userQuestion, deviceId = null) => {
 
     console.log(`Collected data from ${weatherSummary.length} devices for AI`);
 
-    if (weatherSummary.length === 0) return "ขออภัยครับ ไม่พบข้อมูลสภาพอากาศจากอุปกรณ์ใดๆ ในระบบเลย";
+    if (weatherSummary.length === 0) return "Sorry, no historical data available from any device to analyze. Please check back later.";
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     
@@ -206,7 +206,7 @@ const askWeatherAI = async (userId, userQuestion, deviceId = null) => {
 
   } catch (error) {
     console.error("❌ AskWeatherAI Error:", error);
-    return "เกิดข้อผิดพลาดในการประมวลผลคำถามของคุณ กรุณาลองใหม่อีกครั้ง";
+    return "Sorry, there was an error processing your request. Please try again later.";
   }
 };
 
