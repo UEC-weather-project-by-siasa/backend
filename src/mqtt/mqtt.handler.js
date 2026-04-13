@@ -133,22 +133,35 @@ const handleMessages = () => {
 
       const sensorsPayload = payload.sensors || {};
       const netMode = payload.net_mode || 'N/A';
-      const hardwareTs = payload.ts || 0;
 
       // 1. บันทึกลง InfluxDB (วนลูปเก็บตามมาตรฐานเดิม)
       let sensors = sensorCache.get(deviceId);
       if (!sensors) sensors = await loadDeviceSensors(deviceId);
+      
+      let hardwareTs = Number(payload.ts);
+
+      // ถ้าเป็น seconds → แปลงเป็น ms
+      if (hardwareTs < 1000000000000) {
+        hardwareTs = hardwareTs * 1000;
+      }
+
+      if (!hardwareTs || hardwareTs < 1000000000000) { 
+        console.error("Invalid Timestamp received:", hardwareTs);
+        return; 
+      }
+
+      console.log(payload);
 
       for (const [sensorName, value] of Object.entries(sensorsPayload)) {
         if (!sensors.has(sensorName)) continue;
-        
+
         const point = new Point('sensor_reading')
           .tag('device_id', deviceId)
           .tag('sensor', sensorName)
           .floatField('value', parseFloat(value))
-          .timestamp(new Date());
-        writeApi.writePoint(point);
+          .timestamp(new Date(hardwareTs)); 
 
+        writeApi.writePoint(point);
       }
 
       // 2. ⚡️ ส่ง Real-time แบบ "มัดรวม" (เหมาะกับ Dashboard มากกว่า)
