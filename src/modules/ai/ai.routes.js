@@ -212,4 +212,38 @@ router.post(
 );
 
 
+/**
+ * @swagger
+ * /api/ai/predictions/last:
+ *   get:
+ *     summary: Get latest AI prediction for each device
+ *     description: Returns the most recent AI prediction for every device in the system
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved latest predictions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  '/predictions/last',
+  protect,
+  aiController.getLastPredictions
+);
+
+
 module.exports = router;

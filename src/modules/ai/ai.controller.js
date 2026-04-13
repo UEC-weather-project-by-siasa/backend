@@ -194,11 +194,31 @@ const clearLogs = async (req, res) => {
   }
 };
 
+
+
+const getLastPredictions = async (req, res) => {
+  try {
+    const data = await aiService.getLatestPredictionsForAllDevices();
+    
+    res.status(200).json({
+      status: 'success',
+      count: data.length,
+      data: data
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   triggerPrediction,
   getPredictions,
   deleteAllPredictions,
   handleAskAI,
   getLogs,
-  clearLogs
+  clearLogs,
+  getLastPredictions
 };

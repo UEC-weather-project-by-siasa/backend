@@ -106,37 +106,38 @@ const runBulkWeatherPredictionByAIModel = async () => {
 
     // console.log(prompt); // Debug: ดู Prompt ที่ส่งไปยัง AI
 
-    const result = await model.generateContent(prompt);
-    const aiResponse = JSON.parse(result.response.text());
+    // const result = await model.generateContent(prompt);
+    // const aiResponse = JSON.parse(result.response.text());
 
-    const predictionData = aiResponse.map(res => {
-      const original = batchInput.find(b => b.internalId === res.internalId);
+    // const predictionData = aiResponse.map(res => {
+    //   const original = batchInput.find(b => b.internalId === res.internalId);
       
-      const currentSnapshot = {};
-      Object.keys(original.historyData).forEach(key => {
-        const arr = original.historyData[key];
-        currentSnapshot[key] = arr[arr.length - 1];
-      });
+    //   const currentSnapshot = {};
+    //   Object.keys(original.historyData).forEach(key => {
+    //     const arr = original.historyData[key];
+    //     currentSnapshot[key] = arr[arr.length - 1];
+    //   });
 
-      return {
-        deviceId: res.internalId,
-        aiModel: "Gemini-2.5-Flash",
-        InputData: currentSnapshot, 
-        predictionOutput: res.predictionOutput,
-        predictFor: new Date(Date.now() + 15 * 60000),
-        aiDecision: res.aiDecision,
-        aiSuggestion: res.aiSuggestion,
-        aiInsight: res.aiInsight
-      };
-    });
+    //   return {
+    //     deviceId: res.internalId,
+    //     aiModel: "Gemini-2.5-Flash",
+    //     InputData: currentSnapshot, 
+    //     predictionOutput: res.predictionOutput,
+    //     predictFor: new Date(Date.now() + 15 * 60000),
+    //     aiDecision: res.aiDecision,
+    //     aiSuggestion: res.aiSuggestion,
+    //     aiInsight: res.aiInsight
+    //   };
+    // });
 
-    // บันทึกแบบ Bulk ลง Postgres
-    if (predictionData.length > 0) {
-      await prisma.weatherPrediction.createMany({ data: predictionData });
-    }
+    // // บันทึกแบบ Bulk ลง Postgres
+    // if (predictionData.length > 0) {
+    //   await prisma.weatherPrediction.createMany({ data: predictionData });
+    // }
 
-    console.log(`Bulk Prediction completed for ${predictionData.length} devices.`);
-    return aiResponse;
+    // console.log(`Bulk Prediction completed for ${predictionData.length} devices.`);
+    // return aiResponse;
+    return "ฟีเจอร์นี้กำลังอยู่ในระหว่างการพัฒนาและทดสอบครับ โปรดรอการอัปเดตในเร็วๆ นี้!";
 
   } catch (error) {
     console.error('AI Bulk Prediction Error:', error);
@@ -199,8 +200,9 @@ const askWeatherAI = async (userId, userQuestion, deviceId = null) => {
     5. Provide helpful and practical insights when possible
     `;
 
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    // const result = await model.generateContent(prompt);
+    // return result.response.text();
+    return "ฟีเจอร์นี้กำลังอยู่ในระหว่างการพัฒนาและทดสอบครับ โปรดรอการอัปเดตในเร็วๆ นี้!";
 
   } catch (error) {
     console.error("❌ AskWeatherAI Error:", error);
@@ -273,9 +275,32 @@ const deleteAiLogs = async (userId, logId = null) => {
   });
 };
 
+const getLatestPredictionsForAllDevices = async () => {
+  const devices = await prisma.device.findMany({
+    select: { id: true, deviceId: true, name: true }
+  });
+  const latestPredictions = await Promise.all(
+    devices.map(async (device) => {
+      const lastPred = await prisma.weatherPrediction.findFirst({
+        where: { deviceId: device.id },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          device: {
+            select: { name: true, deviceId: true }
+          }
+        }
+      });
+      return lastPred;
+    })
+  );
+
+  return latestPredictions.filter(p => p !== null);
+};
+
 module.exports = { 
   runBulkWeatherPredictionByAIModel, 
   askWeatherAI,
   getAiLogs,
-  deleteAiLogs
+  deleteAiLogs,
+  getLatestPredictionsForAllDevices
 };
