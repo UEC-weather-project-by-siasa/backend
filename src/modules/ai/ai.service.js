@@ -4,6 +4,22 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+const retryWithBackoff = async (fn, retries = 3, delay = 2000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (error.status === 503 && i < retries - 1) {
+        console.warn(`⚠️ Gemini 503 (Busy), retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
+        await new Promise(res => setTimeout(res, delay));
+        delay *= 2; 
+        continue;
+      }
+      throw error; 
+    }
+  }
+};
+
 const runBulkWeatherPredictionByAIModel = async () => {
   try {
     const devices = await prisma.device.findMany({
@@ -106,7 +122,12 @@ const runBulkWeatherPredictionByAIModel = async () => {
 
     // console.log(prompt); // Debug: ดู Prompt ที่ส่งไปยัง AI
 
-    const result = await model.generateContent(prompt);
+    const result = await retryWithBackoff(() => model.generateContent(prompt));
+    
+    if (!result || !result.response) {
+      throw new Error("Empty response from Gemini");
+    }
+
     const aiResponse = JSON.parse(result.response.text());
 
     const predictionData = aiResponse.map(res => {
@@ -135,13 +156,13 @@ const runBulkWeatherPredictionByAIModel = async () => {
       await prisma.weatherPrediction.createMany({ data: predictionData });
     }
 
-    // console.log(`Bulk Prediction completed for ${predictionData.length} devices.`);
+    console.log(`Bulk Prediction completed for ${predictionData.length} devices.`);
     return aiResponse;
-    return "ฟีเจอร์นี้กำลังอยู่ในระหว่างการพัฒนาและทดสอบครับ โปรดรอการอัปเดตในเร็วๆ นี้!";
+    // return "ฟีเจอร์นี้กำลังอยู่ในระหว่างการพัฒนาและทดสอบครับ โปรดรอการอัปเดตในเร็วๆ นี้!";
 
   } catch (error) {
-    console.error('AI Bulk Prediction Error:', error);
-    throw error;
+    console.error('❌ AI Bulk Prediction Failed:', error.message);
+    return null;
   }
 };
 

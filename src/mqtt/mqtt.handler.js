@@ -55,7 +55,7 @@ const updateDeviceOnline = async (deviceId, isOnline) => {
       );
     }
 
-    console.log(`Device ${deviceId} → ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+    // console.log(`Device ${deviceId} → ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
   } catch (err) {
     console.error(`DB update failed for ${deviceId}:`, err.message);
   }
@@ -149,8 +149,6 @@ const handleMessages = () => {
         console.error("Invalid Timestamp received:", hardwareTs);
         return; 
       }
-
-      console.log(payload);
 
       for (const [sensorName, value] of Object.entries(sensorsPayload)) {
         if (!sensors.has(sensorName)) continue;
