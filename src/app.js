@@ -18,6 +18,7 @@ const alertRoutes = require('./modules/alert/alert.routes');
 const alertLogRoutes = require('./modules/alertLog/alertLog.routes');
 const notificationRoutes = require('./modules/notification/notification.routes');
 const aiRoutes = require('./modules/ai/ai.routes');
+const dataRoutes = require('./modules/data/data.routes');
 
 const app = express();
 
@@ -56,6 +57,7 @@ app.use('/api/alerts', alertRoutes);
 app.use('/api/alert-logs', alertLogRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/data', dataRoutes);
 
 // ─── Upload ───
 app.use("/uploads", express.static("uploads"));
