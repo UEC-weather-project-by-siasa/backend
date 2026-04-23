@@ -42,6 +42,7 @@ model User {
   notifications  Notification[]
   setting        UserSetting?
   aiAskLogs AiAskLog[]
+  mobileDevices   UserMobileDevice[]
   
   createdAt      DateTime @default(now())
 }
@@ -257,4 +258,19 @@ model AiAskLog {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+model UserMobileDevice {
+  id          Int      @id @default(autoincrement())
+  pushToken   String   @unique // Token จาก Expo
+  deviceModel String?  // เช่น "iPhone 15 Pro"
+  osVersion   String?  // เช่น "iOS 17.4"
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      Int
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
 }

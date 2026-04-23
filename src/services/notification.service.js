@@ -1,15 +1,34 @@
 const prisma = require('../config/db');
 const { getIO } = require('../socket/socket');
+const { sendPushNotification } = require('./push.service');
 
 const createNotification = async (userId, data) => {
+  // save to db
   const noti = await prisma.notification.create({
     data: { userId, ...data }
   });
 
-  // ยิง Socket แจ้งเตือนรายคน
+  //sent socket
   const io = getIO();
   io.to(`user:${userId}`).emit('notification:new', noti);
-  
+
+  // Push Notification 
+  const mobileDevices = await prisma.userMobileDevice.findMany({
+    where: { userId: userId }
+  });
+
+  console.log(mobileDevices);
+
+  mobileDevices.forEach(device => {
+    sendPushNotification(
+      device.pushToken, 
+      data.title, 
+      data.message, 
+      { notiId: noti.id }
+    );
+  });
+
+
   return noti;
 };
 

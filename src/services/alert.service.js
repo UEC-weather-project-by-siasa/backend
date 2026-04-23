@@ -71,7 +71,7 @@ const checkSensorAlerts = async (deviceId, sensorsPayload) => {
             // เช็ค Setting System Notification
             if (setting.enableSystemNoti) {
               await createNotification(user.id, {
-                title: '🚨 Sensor Alert',
+                title: 'Sensor Alert',
                 message: logMessage,
                 alertLogId: newLog.id
               });
@@ -94,7 +94,7 @@ const checkSensorAlerts = async (deviceId, sensorsPayload) => {
               // สร้าง Notification รายบุคคลถ้าเขาเปิดไว้
               if (setting.enableSystemNoti) {
                 await createNotification(u.id, {
-                  title: rule.type === 'GLOBAL' ? '🌐 Global Alert' : '⚠️ System Alert',
+                  title: rule.type === 'GLOBAL' ? 'Global Alert' : 'System Alert',
                   message: logMessage,
                   alertLogId: newLog.id
                 });

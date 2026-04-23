@@ -185,6 +185,42 @@ const updateMySettings = async (userId, data) => {
 };
 
 
+// --------------- push ------------------------
+/**
+ * ลงทะเบียนหรืออัปเดตข้อมูลมือถือ
+ */
+const registerMobileDevice = async (userId, deviceData) => {
+  const { pushToken, deviceModel, osVersion } = deviceData;
+
+  if (!pushToken) throw new Error('Push token is required');
+
+  return await prisma.userMobileDevice.upsert({
+    where: { pushToken: pushToken },
+    update: { 
+      userId: userId,
+      deviceModel: deviceModel || null,
+      osVersion: osVersion || null,
+    },
+    create: {
+      pushToken: pushToken,
+      userId: userId,
+      deviceModel: deviceModel || null,
+      osVersion: osVersion || null,
+    },
+  });
+};
+
+/**
+ * ลบ Token อุปกรณ์ออก (ใช้ตอน Logout หรือปิดแจ้งเตือน)
+ */
+const unregisterMobileDevice = async (pushToken) => {
+  if (!pushToken) throw new Error('Push token is required to unregister');
+  
+  return await prisma.userMobileDevice.deleteMany({
+    where: { pushToken: pushToken }
+  });
+};
+
 module.exports = {
   register,
   login,
@@ -195,5 +231,7 @@ module.exports = {
   changePassword,
   deleteMe, 
   getMySettings,
-  updateMySettings,      
+  updateMySettings,
+  registerMobileDevice,
+  unregisterMobileDevice,      
 };

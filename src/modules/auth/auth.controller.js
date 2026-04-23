@@ -105,3 +105,25 @@ exports.updateMySettings = async (req, res) => {
     res.status(400).json({ status: 'fail', message: error.message });
   }
 };
+
+
+// ------ push ------
+exports.registerMobileDevice = async (req, res) => {
+  try {
+    // รับค่าครบตาม Model ที่คุณต้องการ
+    const result = await authService.registerMobileDevice(req.user.id, req.body);
+    res.json({ status: 'success', data: result });
+  } catch (error) {
+    res.status(400).json({ status: 'fail', message: error.message });
+  }
+};
+
+exports.unregisterMobileDevice = async (req, res) => {
+  try {
+    const { pushToken } = req.body;
+    await authService.unregisterMobileDevice(pushToken);
+    res.json({ status: 'success', message: 'Device unregistered successfully' });
+  } catch (error) {
+    res.status(400).json({ status: 'fail', message: error.message });
+  }
+};

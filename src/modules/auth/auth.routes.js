@@ -238,4 +238,61 @@ router.get('/settings', protect, authController.getMySettings);
 router.patch('/settings', protect, authController.updateMySettings);
 
 
+/**
+ * @swagger
+ * /api/auth/register-mobile:
+ *   post:
+ *     summary: Register or update mobile push token
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [pushToken]
+ *             properties:
+ *               pushToken:
+ *                 type: string
+ *                 example: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+ *               deviceModel:
+ *                 type: string
+ *                 example: iPhone 13
+ *               osVersion:
+ *                 type: string
+ *                 example: iOS 17
+ *     responses:
+ *       200:
+ *         description: Device registered successfully
+ */
+router.post('/register-mobile', protect, authController.registerMobileDevice);
+
+/**
+ * @swagger
+ * /api/auth/unregister-mobile:
+ *   post:
+ *     summary: Remove push token (call this on logout)
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [pushToken]
+ *             properties:
+ *               pushToken:
+ *                 type: string
+ *                 example: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+ *     responses:
+ *       200:
+ *         description: Device unregistered successfully
+ */
+router.post('/unregister-mobile', authController.unregisterMobileDevice);
+
+
 module.exports = router;
