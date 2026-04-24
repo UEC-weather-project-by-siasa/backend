@@ -7,6 +7,7 @@ const getAllUsers = async () => {
       name: true,
       email: true,
       role: true,
+      profilePicture: true,
       createdAt: true
     }
   });
