@@ -10,6 +10,18 @@ const { checkSensorAlerts } = require('../services/alert.service');
 const sensorCache = new Map();
 const deviceCache = new Map();
 
+const resetAllDeviceStatus = async () => {
+  try {
+    console.log('🔄 Resetting all devices to offline on startup...');
+    await prisma.device.updateMany({
+      data: { isOnline: false }
+    });
+    deviceCache.clear();
+  } catch (err) {
+    console.error('Failed to reset device status:', err.message);
+  }
+};
+
 // ─────────────────────────────────────────────
 // โหลด sensor mapping
 // ─────────────────────────────────────────────
@@ -97,6 +109,20 @@ const logToDevice = async (deviceId, level, message, eventCode = 'GENERIC', meta
 // HEARTBEAT MONITOR
 // ─────────────────────────────────────────────
 const startHeartbeatMonitor = () => {
+
+  const syncCacheFromDB = async () => {
+    const onlineDevices = await prisma.device.findMany({
+      where: { isOnline: true }
+    });
+    onlineDevices.forEach(d => {
+      if (!deviceCache.has(d.deviceId)) {
+        deviceCache.set(d.deviceId, { lastUpdate: Date.now(), isOnline: true });
+      }
+    });
+  };
+
+  syncCacheFromDB();
+
   setInterval(async () => {
     const now = Date.now();
 
@@ -117,8 +143,9 @@ const startHeartbeatMonitor = () => {
 // ─────────────────────────────────────────────
 // MAIN HANDLER
 // ─────────────────────────────────────────────
-const handleMessages = () => {
+const handleMessages = async () => {
 
+  await resetAllDeviceStatus();
   startHeartbeatMonitor();
 
   client.on('message', async (topic, message) => {
