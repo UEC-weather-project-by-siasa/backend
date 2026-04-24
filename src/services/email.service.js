@@ -3,14 +3,14 @@ const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: process.env.SMTP_PORT,
-  secure: true, // เปลี่ยนเป็น true ถ้าใช้พอร์ต 465
+  secure: true,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
 });
 
-// เปลี่ยน `to` เป็นรับ Array ได้
+
 const sendAlertEmail = async (emails, deviceName, sensorName, condition, threshold, actualValue) => {
   const isMultiple = Array.isArray(emails);
   
@@ -62,4 +62,25 @@ const sendBroadcastEmail = async (emails, subject, message) => {
   }
 };
 
-module.exports = { sendAlertEmail, sendBroadcastEmail };
+const sendResetPasswordEmail = async (email, token) => {
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+  const mailOptions = {
+    from: `"UEC Weather System" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: 'Password Reset Request',
+    html: `
+      <div style="font-family: sans-serif; padding: 20px;">
+        <h2>Reset Your Password</h2>
+        <p>You requested a password reset. Please click the button below to set a new password:</p>
+        <a href="${resetUrl}" style="background: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0;">Reset Password</a>
+        <p>This link will expire in 1 hour.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+module.exports = { sendAlertEmail, sendBroadcastEmail , sendResetPasswordEmail};

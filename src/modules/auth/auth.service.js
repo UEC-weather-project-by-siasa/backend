@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../../config/db');
+const crypto = require('crypto');
+const { sendResetPasswordEmail } = require('../../services/email.service');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -221,6 +223,53 @@ const unregisterMobileDevice = async (pushToken) => {
   });
 };
 
+// --------------------- password -----------------------
+const requestPasswordReset = async (email) => {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) throw new Error('User with this email does not exist');
+
+  // สร้าง Token แบบสุ่มและกำหนดวันหมดอายุ (เช่น 1 ชั่วโมง)
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const expires = new Date(Date.now() + 3600000); 
+
+  await prisma.user.update({
+    where: { email },
+    data: {
+      resetPasswordToken: resetToken,
+      resetPasswordExpires: expires,
+    },
+  });
+
+  await sendResetPasswordEmail(user.email, resetToken);
+
+  return { message: 'Reset link sent to email' };
+};
+
+const resetPassword = async (token, newPassword) => {
+  const user = await prisma.user.findFirst({
+    where: {
+      resetPasswordToken: token,
+      resetPasswordExpires: { gt: new Date() }, 
+    },
+  });
+
+  if (!user) throw new Error('Token is invalid or has expired');
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password: hashedPassword,
+      resetPasswordToken: null,     
+      resetPasswordExpires: null,
+      tokenVersion: { increment: 1 } 
+    },
+  });
+
+  return { message: 'Password has been reset successfully' };
+};
+
 module.exports = {
   register,
   login,
@@ -233,5 +282,7 @@ module.exports = {
   getMySettings,
   updateMySettings,
   registerMobileDevice,
-  unregisterMobileDevice,      
+  unregisterMobileDevice,
+  requestPasswordReset,
+  resetPassword,      
 };

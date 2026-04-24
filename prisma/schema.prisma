@@ -37,6 +37,9 @@ model User {
   role           Role     @default(USER) 
   tokenVersion   Int      @default(0)
 
+  resetPasswordToken   String?   @unique
+  resetPasswordExpires DateTime?
+
   devices        Device[]
   alertRules     AlertRule[]
   notifications  Notification[]

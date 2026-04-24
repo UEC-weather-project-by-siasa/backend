@@ -127,3 +127,21 @@ exports.unregisterMobileDevice = async (req, res) => {
     res.status(400).json({ status: 'fail', message: error.message });
   }
 };
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const result = await authService.requestPasswordReset(req.body.email);
+    res.json({ status: 'success', ...result });
+  } catch (error) {
+    res.status(400).json({ status: 'fail', message: error.message });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const result = await authService.resetPassword(req.body.token, req.body.newPassword);
+    res.json({ status: 'success', ...result });
+  } catch (error) {
+    res.status(400).json({ status: 'fail', message: error.message });
+  }
+};
