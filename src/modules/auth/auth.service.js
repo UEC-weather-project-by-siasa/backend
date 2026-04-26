@@ -39,6 +39,10 @@ const register = async (userData) => {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) throw new Error('Email already in use');
 
+  if (!password || password.length < 6) {
+    throw new Error('Password must be at least 6 characters');
+  }
+
   const hashedPassword = await bcrypt.hash(password, 10);
 
   const user = await prisma.$transaction(async (tx) => {

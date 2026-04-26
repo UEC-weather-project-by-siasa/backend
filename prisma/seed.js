@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
+const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({
@@ -9,6 +10,29 @@ const prisma = new PrismaClient({
 
 async function main() {
   console.log('🌱 Seeding start...');
+
+  // ───────── Users ─────────
+  const hashedPassword = await bcrypt.hash('admin1234', 10);
+
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@admin' },
+    update: {},
+    create: {
+      name: 'Admin',
+      email: 'admin@admin.com',
+      password: hashedPassword,
+      role: 'ADMIN',
+      profilePicture: '/profilePicture.png',
+      setting: {
+        create: {
+          enableEmailAlert: true,
+          enableSystemNoti: true,
+        },
+      },
+    },
+  });
+
+  console.log('✅ Admin created:', admin.email);
 
   // ───────── Sensor ─────────
   const sensors = await Promise.all([
@@ -77,6 +101,7 @@ async function main() {
       deviceKey: 'Sia18037',
       name: 'Test Weather Device',
       isOnline: false,
+      ownerId: admin.id,
     },
   });
 
