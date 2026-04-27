@@ -34,13 +34,11 @@ const runBulkWeatherPredictionByAIModel = async () => {
 
     const batchInput = [];
 
+    // --- ส่วนดึงข้อมูลจาก InfluxDB (คงเดิม) ---
     for (const d of devices) {
       const sensorHistory = {}; 
       const sensorUnits = {};
-
-      d.sensors.forEach(ds => {
-        sensorUnits[ds.sensor.name] = ds.sensor.unit;
-      });
+      d.sensors.forEach(ds => { sensorUnits[ds.sensor.name] = ds.sensor.unit; });
 
       const query = `
         from(bucket: "${process.env.INFLUX_BUCKET}")
@@ -56,12 +54,9 @@ const runBulkWeatherPredictionByAIModel = async () => {
           const o = tableMeta.toObject(values);
           const sName = o.sensor;
           if (!sensorHistory[sName]) sensorHistory[sName] = [];
-          
           sensorHistory[sName].push(parseFloat(o._value.toFixed(2)));
         }
-      } catch (err) {
-        console.error(`Influx error for ${d.deviceId}:`, err.message);
-      }
+      } catch (err) { console.error(`Influx error:`, err.message); }
 
       if (Object.keys(sensorHistory).length > 0) {
         batchInput.push({
@@ -75,97 +70,82 @@ const runBulkWeatherPredictionByAIModel = async () => {
       }
     }
 
-    if (batchInput.length === 0) {
-      console.log("⚠️ No active sensor data to predict.");
-      return [];
-    }
+    if (batchInput.length === 0) return [];
 
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash",
+        model: "gemini-3.1-flash-lite-preview",
         generationConfig: { responseMimeType: "application/json" }
     });
 
-    const prompt = `
-    You are an expert in meteorology and AI analyzing IoT weather data (UEC Weather).
+    const predictionResults = [];
 
-    Input Data (JSON): 
-    ${JSON.stringify(batchInput)}
+    // console.log(batchInput);
 
-    Analysis Conditions:
-    1. historyData: Each sensor contains an array of values [t-60, t-55, ..., t-5, t-0]
-      **Ordered from past (Index 0) to present (last index)** with 5-minute intervals
-    2. units: Use the provided sensor units to evaluate the severity of values
-    3. location: Use geographic coordinates to assess local environmental context 
-      (e.g., near sea, mountain, urban area)
+    for (const input of batchInput) {
+      try {
+        const singlePrompt = `
+          You are an expert in meteorology analyzing IoT weather data for device: ${input.name}.
+          Input Data: ${JSON.stringify(input)}
 
-    Your Tasks:
-    - Analyze the Trend (Rising / Stable / Falling) from historical data
-    - Predict 'next_values' for each sensor for the next 15-30 minutes
-    - aiDecision: Choose one from [none, alert_warning, alert_critical] 
-      based on severity and predicted values
-    - aiSuggestion: Provide a short recommendation for users 
-      (e.g., "Close windows", "Prepare for rain")
-    - aiInsight: Provide a concise summary of the weather condition and important changes 
-      (Write in English language, focus on key insights, avoid repeating numbers)
+          Tasks:
+          - Analyze the Trend (Rising / Stable / Falling) from historical data
+          - Predict 'next_values' for the next 15-30 minutes
+          - aiDecision: Choose from [none, alert_warning, alert_critical]
+          - aiSuggestion: Short recommendation
+          - aiInsight: Concise summary in English.
 
-    Return JSON ARRAY ONLY. No additional explanation.
+          Return JSON OBJECT ONLY.
+          Format:
+          {
+              "internalId": number,
+              "predictionOutput": { 
+                  "confidence": float (0.0 - 1.0), 
+                  "trend": "rising" | "stable" | "falling", 
+                  "next_values": { "sensor_name": value } 
+              },
+              "aiDecision": "string",
+              "aiSuggestion": "string",
+              "aiInsight": "string"
+          }
+        `;
 
-    Output Format:
-    [{
-        "internalId": number,
-        "predictionOutput": { 
-            "confidence": float (0.0 - 1.0), 
-            "trend": "rising" | "stable" | "falling", 
-            "next_values": { "sensor_name": value } 
-        },
-        "aiDecision": "string",
-        "aiSuggestion": "string",
-        "aiInsight": "string"
-    }]
-    `;
+        const result = await retryWithBackoff(() => model.generateContent(singlePrompt));
+        const aiRes = JSON.parse(result.response.text());
+        
+        const currentSnapshot = {};
+        Object.keys(input.historyData).forEach(key => {
+          const arr = input.historyData[key];
+          currentSnapshot[key] = arr[arr.length - 1];
+        });
 
-    // console.log(prompt); // Debug: ดู Prompt ที่ส่งไปยัง AI
+        predictionResults.push({
+          deviceId: input.internalId, 
+          aiModel: "gemini-3.1-flash-lite-preview",
+          InputData: currentSnapshot,
+          predictionOutput: aiRes.predictionOutput,
+          predictFor: new Date(Date.now() + 15 * 60000),
+          aiDecision: aiRes.aiDecision,
+          aiSuggestion: aiRes.aiSuggestion,
+          aiInsight: aiRes.aiInsight
+        });
 
-    const result = await retryWithBackoff(() => model.generateContent(prompt));
-    
-    if (!result || !result.response) {
-      throw new Error("Empty response from Gemini");
+        await new Promise(res => setTimeout(res, 500));
+        console.log(`Processed: ${input.name}`);
+
+      } catch (err) {
+        console.error(`Skip device ${input.deviceId}:`, err.message);
+      }
     }
 
-    const aiResponse = JSON.parse(result.response.text());
-
-    const predictionData = aiResponse.map(res => {
-      const original = batchInput.find(b => b.internalId === res.internalId);
-      
-      const currentSnapshot = {};
-      Object.keys(original.historyData).forEach(key => {
-        const arr = original.historyData[key];
-        currentSnapshot[key] = arr[arr.length - 1];
-      });
-
-      return {
-        deviceId: res.internalId,
-        aiModel: "Gemini-2.5-Flash",
-        InputData: currentSnapshot, 
-        predictionOutput: res.predictionOutput,
-        predictFor: new Date(Date.now() + 15 * 60000),
-        aiDecision: res.aiDecision,
-        aiSuggestion: res.aiSuggestion,
-        aiInsight: res.aiInsight
-      };
-    });
-
-    // บันทึกแบบ Bulk ลง Postgres
-    if (predictionData.length > 0) {
-      await prisma.weatherPrediction.createMany({ data: predictionData });
+    if (predictionResults.length > 0) {
+      await prisma.weatherPrediction.createMany({ data: predictionResults });
+      console.log(`Saved ${predictionResults.length} predictions to Database.`);
     }
 
-    console.log(`Bulk Prediction completed for ${predictionData.length} devices.`);
-    return aiResponse;
-    // return "ฟีเจอร์นี้กำลังอยู่ในระหว่างการพัฒนาและทดสอบครับ โปรดรอการอัปเดตในเร็วๆ นี้!";
+    return predictionResults;
 
   } catch (error) {
-    console.error('❌ AI Bulk Prediction Failed:', error.message);
+    console.error('AI Prediction Failed:', error.message);
     return null;
   }
 };
@@ -209,7 +189,7 @@ const askWeatherAI = async (userId, userQuestion, deviceId = null) => {
       throw new Error("NO_DATA"); 
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
     const prompt = `
     You are an intelligent weather data analysis AI (UEC Weather Platform).
