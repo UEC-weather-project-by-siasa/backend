@@ -1,22 +1,26 @@
 const prisma = require('../../config/db');
 const { queryApi } = require('../../config/influx');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const Groq = require("groq-sdk");
 
+// Initialize APIs
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
-const retryWithBackoff = async (fn, retries = 5, delay = 2000) => {
+/**
+ * ฟังก์ชันช่วยสำหรับ Exponential Backoff
+ */
+const retryWithBackoff = async (fn, retries = 3, delay = 2000) => {
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
     } catch (error) {
-      if (error.status === 503 && i < retries - 1) {
-        const jitter = Math.random() * 1000;
-        const waitTime = delay + jitter;
-
-        console.warn(`⚠️ Gemini 503 (Busy), Retry in ${waitTime}ms`);
+      if ((error.status === 503 || error.status === 429) && i < retries - 1) {
+        const waitTime = delay * Math.pow(2, i) + Math.random() * 1000;
+        console.warn(`⚠️ AI Busy/Limit, Retrying in ${waitTime.toFixed(0)}ms...`);
         await new Promise(res => setTimeout(res, waitTime));
-
-        delay = Math.min(delay * 2, 30000);
         continue;
       }
       throw error;
@@ -24,6 +28,9 @@ const retryWithBackoff = async (fn, retries = 5, delay = 2000) => {
   }
 };
 
+/**
+ * งานพยากรณ์อากาศแบบกลุ่ม (ใช้ Groq 100% เพราะเร็วและโควตาเยอะ)
+ */
 const runBulkWeatherPredictionByAIModel = async () => {
   try {
     const devices = await prisma.device.findMany({
@@ -33,8 +40,7 @@ const runBulkWeatherPredictionByAIModel = async () => {
     if (devices.length === 0) return [];
 
     const batchInput = [];
-
-    // --- ส่วนดึงข้อมูลจาก InfluxDB (คงเดิม) ---
+    // --- ส่วนดึงข้อมูลจาก InfluxDB ---
     for (const d of devices) {
       const sensorHistory = {}; 
       const sensorUnits = {};
@@ -56,7 +62,7 @@ const runBulkWeatherPredictionByAIModel = async () => {
           if (!sensorHistory[sName]) sensorHistory[sName] = [];
           sensorHistory[sName].push(parseFloat(o._value.toFixed(2)));
         }
-      } catch (err) { console.error(`Influx error:`, err.message); }
+      } catch (err) { console.error(`Influx error for ${d.deviceId}:`, err.message); }
 
       if (Object.keys(sensorHistory).length > 0) {
         batchInput.push({
@@ -72,18 +78,11 @@ const runBulkWeatherPredictionByAIModel = async () => {
 
     if (batchInput.length === 0) return [];
 
-    const model = genAI.getGenerativeModel({ 
-        model: "gemini-3.1-flash-lite-preview",
-        generationConfig: { responseMimeType: "application/json" }
-    });
-
     const predictionResults = [];
-
-    // console.log(batchInput);
 
     for (const input of batchInput) {
       try {
-        const singlePrompt = `
+        const detailedPrompt = `
           You are an expert in meteorology analyzing IoT weather data for device: ${input.name}.
           Input Data: ${JSON.stringify(input)}
 
@@ -109,8 +108,22 @@ const runBulkWeatherPredictionByAIModel = async () => {
           }
         `;
 
-        const result = await retryWithBackoff(() => model.generateContent(singlePrompt));
-        const aiRes = JSON.parse(result.response.text());
+        const chatCompletion = await retryWithBackoff(() => groq.chat.completions.create({
+          messages: [
+            {
+              role: "system",
+              content: "You are a professional meteorologist. You must respond with valid JSON only based on the provided format."
+            },
+            {
+              role: "user",
+              content: detailedPrompt
+            }
+          ],
+          model: GROQ_MODEL,
+          response_format: { type: "json_object" }
+        }));
+
+        const aiRes = JSON.parse(chatCompletion.choices[0].message.content);
         
         const currentSnapshot = {};
         Object.keys(input.historyData).forEach(key => {
@@ -120,17 +133,18 @@ const runBulkWeatherPredictionByAIModel = async () => {
 
         predictionResults.push({
           deviceId: input.internalId, 
-          aiModel: "gemini-3.1-flash-lite-preview",
+          aiModel: GROQ_MODEL,
           InputData: currentSnapshot,
-          predictionOutput: aiRes.predictionOutput,
-          predictFor: new Date(Date.now() + 15 * 60000),
+          predictionOutput: aiRes.predictionOutput, 
+          predictFor: new Date(Date.now() + 30 * 60000),
           aiDecision: aiRes.aiDecision,
           aiSuggestion: aiRes.aiSuggestion,
           aiInsight: aiRes.aiInsight
         });
 
-        await new Promise(res => setTimeout(res, 500));
-        console.log(`Processed: ${input.name}`);
+        console.log(`Groq Processed: ${input.name}`);
+        
+        await new Promise(res => setTimeout(res, 1500)); 
 
       } catch (err) {
         console.error(`Skip device ${input.deviceId}:`, err.message);
@@ -139,83 +153,127 @@ const runBulkWeatherPredictionByAIModel = async () => {
 
     if (predictionResults.length > 0) {
       await prisma.weatherPrediction.createMany({ data: predictionResults });
-      console.log(`Saved ${predictionResults.length} predictions to Database.`);
+      console.log(`Saved ${predictionResults.length} predictions via Groq.`);
     }
 
     return predictionResults;
-
   } catch (error) {
-    console.error('AI Prediction Failed:', error.message);
+    console.error('AI Bulk Prediction Failed:', error.message);
     return null;
   }
 };
 
+/**
+ * ถามคำตอบสภาพอากาศ (ใช้ Gemini เป็นหลัก และ Groq เป็นสำรอง)
+ */
 const askWeatherAI = async (userId, userQuestion, deviceId = null) => {
   let weatherSummary = [];
 
   try {
     if (deviceId) {
-      const device = await prisma.device.findUnique({
-        where: { deviceId: deviceId },
-        select: { deviceId: true, name: true }
-      });
-      
+      const device = await prisma.device.findUnique({ where: { deviceId }, select: { deviceId: true, name: true } });
       if (device) {
         const data = await getDeviceHistorySummary(device.deviceId, "-24h", "1h");
-        if (Object.keys(data).length > 0) {
-          weatherSummary.push({ deviceId: device.deviceId, name: device.name, data });
-        }
+        weatherSummary.push({ deviceId: device.deviceId, name: device.name, data });
       }
     } else {
-      const allDevices = await prisma.device.findMany({
-        select: { deviceId: true, name: true }
-      });
-
+      const allDevices = await prisma.device.findMany({ select: { deviceId: true, name: true } });
       const historyPromises = allDevices.map(async (d) => {
         const data = await getDeviceHistorySummary(d.deviceId, "-24h", "1h");
-        if (Object.keys(data).length > 0) {
-          return { deviceId: d.deviceId, name: d.name, data };
-        }
-        return null;
+        return Object.keys(data).length > 0 ? { deviceId: d.deviceId, name: d.name, data } : null;
       });
-
-      const results = await Promise.all(historyPromises);
-      weatherSummary = results.filter(res => res !== null);
+      weatherSummary = (await Promise.all(historyPromises)).filter(res => res !== null);
     }
 
-    console.log(`Collected data from ${weatherSummary.length} devices for AI`);
+    if (weatherSummary.length === 0) throw new Error("NO_DATA");
 
-    if (weatherSummary.length === 0) {
-      throw new Error("NO_DATA"); 
+        const prompt = `
+        You are the "UEC Weather AI", a professional meteorology expert for an IoT platform.
+
+        ### LANGUAGE LOCK (VERY IMPORTANT)
+        - Detect the language of the USER QUESTION.
+        - You MUST respond ONLY in that language.
+        - DO NOT switch language.
+        - DO NOT translate unless user asks.
+        - If user writes in English → answer ONLY in English.
+        - If user writes in Thai → answer ONLY in Thai.
+
+        If you respond in the wrong language, your answer is considered INVALID.
+
+        ---
+
+        ### DATA PRIORITY RULE (CRITICAL)
+        - Use ONLY the provided sensor data as your PRIMARY source.
+        - Do NOT invent or assume missing values.
+        - If external knowledge is needed (e.g., general weather patterns), it must be SECONDARY and clearly based on the provided data trends.
+        - Always prioritize real sensor data over assumptions.
+
+        ---
+
+        ### LOCATION AWARENESS
+        - Use device location (latitude, longitude) to enhance analysis.
+        - Consider environment context (urban, rural, humidity patterns, etc.) ONLY if relevant.
+        - Do NOT hallucinate geography.
+
+        ---
+
+        ### CONTEXT DATA (Last 24 Hours)
+        ${JSON.stringify(weatherSummary)}
+
+        ### USER QUESTION
+        "${userQuestion}"
+
+        ---
+
+        ### RESPONSE RULES
+
+        1. Start with a direct answer immediately.
+        2. Keep it concise but insightful (max ~12 sentences).
+        3. Focus on:
+          - Trends (rising / falling / stable)
+          - Recent anomalies (last 3–6 hours)
+          - Comparison between devices (if multiple)
+        4. Avoid listing raw numbers — summarize instead.
+        5. If tomorrow is asked:
+          - Infer ONLY from trends (DO NOT claim certainty)
+        6. If insufficient data:
+          - Say: "Insufficient data to conclude."
+
+        ---
+
+        ### OUTPUT STYLE
+        - Plain text only
+        - No JSON
+        - No markdown
+        - No greetings
+        - No AI disclaimers
+
+        ---
+
+        ### GOAL
+        Act like a real meteorologist giving precise, data-driven insight.
+        `;
+
+    // --- TRY GEMINI FIRST ---
+    try {
+      console.log("Attempting Gemini 1.5 Flash...");
+      const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    } catch (geminiError) {
+      console.warn("Gemini failed or limited, falling back to Groq...");
+      
+      // --- FALLBACK TO GROQ ---
+      const chatCompletion = await groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: GROQ_MODEL,
+      });
+      return chatCompletion.choices[0].message.content + "\n\n(Answered by Backup AI)";
     }
-
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    
-    const prompt = `
-    You are an intelligent weather data analysis AI (UEC Weather Platform).
-
-    Here is the hourly summary data for the past 24 hours from all devices in the system:
-    ${JSON.stringify(weatherSummary)}
-
-    User Question: "${userQuestion}"
-
-    Response Requirements:
-    1. If the question is about trends, analyze using the provided historical data
-    2. If comparing devices (e.g., which station is hotter), clearly mention device names
-    3. Respond in English or Same Question Language , professional, concise, and easy to understand
-    4. If some devices have missing or offline data, inform the user
-    5. Provide helpful and practical insights when possible
-    `;
-
-    const result = await model.generateContent(prompt);
-    return result.response.text();
 
   } catch (error) {
-    console.error("❌ AskWeatherAI Error:", error);
-    if (error.message === "NO_DATA") {
-      throw error; 
-    }
-    throw new Error("AI_SERVICE_ERROR");
+    console.error("AskWeatherAI Error:", error);
+    throw error;
   }
 };
 

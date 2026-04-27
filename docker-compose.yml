@@ -75,6 +75,9 @@ services:
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASS=${SMTP_PASS}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL}
+      - GROQ_MODEL=${GROQ_MODEL}
       - FRONTEND_URL=${FRONTEND_URL}
     volumes:
       - .:/app
