@@ -180,6 +180,11 @@ const handleMessages = async () => {
       for (const [sensorName, value] of Object.entries(sensorsPayload)) {
         if (!sensors.has(sensorName)) continue;
 
+        const numValue = parseFloat(value);
+        if (isNaN(numValue)) {
+          continue; 
+        }
+
         const point = new Point('sensor_reading')
           .tag('device_id', deviceId)
           .tag('sensor', sensorName)
