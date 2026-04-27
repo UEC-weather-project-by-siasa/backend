@@ -5,7 +5,7 @@ const { runBulkWeatherPredictionByAIModel } = require('./ai.service');
 const initAiCron = () => {
   cron.schedule('*/60 * * * *', () => {
     console.log('Running Scheduled AI Weather Prediction...');
-    // runBulkWeatherPredictionByAIModel();
+    runBulkWeatherPredictionByAIModel();
   });
 };
 
