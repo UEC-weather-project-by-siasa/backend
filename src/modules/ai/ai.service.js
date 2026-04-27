@@ -4,18 +4,22 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-const retryWithBackoff = async (fn, retries = 3, delay = 2000) => {
+const retryWithBackoff = async (fn, retries = 5, delay = 2000) => {
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
     } catch (error) {
       if (error.status === 503 && i < retries - 1) {
-        console.warn(`⚠️ Gemini 503 (Busy), retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
-        await new Promise(res => setTimeout(res, delay));
-        delay *= 2; 
+        const jitter = Math.random() * 1000;
+        const waitTime = delay + jitter;
+
+        console.warn(`⚠️ Gemini 503 (Busy), Retry in ${waitTime}ms`);
+        await new Promise(res => setTimeout(res, waitTime));
+
+        delay = Math.min(delay * 2, 30000);
         continue;
       }
-      throw error; 
+      throw error;
     }
   }
 };
