@@ -115,33 +115,45 @@ const deleteAllPredictions = async (req, res) => {
  * ถามคำถามเกี่ยวกับสภาพอากาศ (Ask AI) และบันทึกลง Log
  */
 const handleAskAI = async (req, res) => {
-  try {
-    const { deviceId, question } = req.body;
-    const userId = req.user.id;
+  const { deviceId, question } = req.body;
+  const userId = req.user.id;
 
-    // เรียก AI Service เพื่อประมวลผลคำตอบจากข้อมูล InfluxDB
+  try {
     const answer = await aiService.askWeatherAI(userId, question, deviceId);
 
-    // บันทึกประวัติการถาม-ตอบลงในตาราง AiAskLog
     await prisma.aiAskLog.create({
       data: {
-        userId: userId,
-        deviceId: deviceId ? parseInt(deviceId) : null,
-        question: question,
-        answer: answer,
+        user: { connect: { id: userId } },
+        ...(deviceId && { device: { connect: { id: parseInt(deviceId) } } }),
+        question,
+        answer,
         status: "SUCCESS"
       }
     });
 
+    res.json({ status: 'success', data: answer });
+
+  } catch (error) {
+    await prisma.aiAskLog.create({
+      data: {
+        user: { connect: { id: userId } },
+        ...(deviceId && { device: { connect: { id: parseInt(deviceId) } } }),
+        question,
+        answer: '',
+        status: "ERROR"
+      }
+    });
+
+    let errorMessage = "Something went wrong. Please try again later.";
+    if (error.message === "AI_SERVICE_ERROR") {
+      errorMessage = "AI service is currently unavailable. Please try again later.";
+    } else if (error.message === "NO_DATA") {
+      errorMessage = "No weather data available for analysis. Please try again later.";
+    }
+
     res.json({ 
       status: 'success', 
-      data: answer 
-    });
-  } catch (error) {
-    // จัดการกรณีโควตาเต็ม (ถ้ามีการเช็คใน Service เพิ่มเติม) หรือ Error ทั่วไป
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
+      data: errorMessage
     });
   }
 };

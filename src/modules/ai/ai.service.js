@@ -201,7 +201,9 @@ const askWeatherAI = async (userId, userQuestion, deviceId = null) => {
 
     console.log(`Collected data from ${weatherSummary.length} devices for AI`);
 
-    if (weatherSummary.length === 0) return "Sorry, no historical data available from any device to analyze. Please check back later.";
+    if (weatherSummary.length === 0) {
+      throw new Error("NO_DATA"); 
+    }
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     
@@ -223,11 +225,13 @@ const askWeatherAI = async (userId, userQuestion, deviceId = null) => {
 
     const result = await model.generateContent(prompt);
     return result.response.text();
-    // return "ฟีเจอร์นี้กำลังอยู่ในระหว่างการพัฒนาและทดสอบครับ โปรดรอการอัปเดตในเร็วๆ นี้!";
 
   } catch (error) {
     console.error("❌ AskWeatherAI Error:", error);
-    return "Sorry, there was an error processing your request. Please try again later.";
+    if (error.message === "NO_DATA") {
+      throw error; 
+    }
+    throw new Error("AI_SERVICE_ERROR");
   }
 };
 
@@ -255,6 +259,7 @@ const getAiLogs = async (userId, { page = 1, limit = 10, search = "" }) => {
 
   const where = {
     userId: userId,
+    status: 'SUCCESS',
     OR: [
       { question: { contains: search, mode: 'insensitive' } },
       { answer: { contains: search, mode: 'insensitive' } }
