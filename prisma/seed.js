@@ -19,7 +19,7 @@ async function main() {
     update: {},
     create: {
       name: 'Admin',
-      email: 'admin@admin.com',
+      email: 'admin@admin',
       password: hashedPassword,
       role: 'ADMIN',
       profilePicture: '/profilePicture.png',
