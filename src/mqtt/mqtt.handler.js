@@ -1,5 +1,5 @@
 const client = require('./mqtt.client');
-const { writeApi, Point } = require('../config/influx'); // ← import InfluxDB
+const { writeApi, Point } = require('../config/influx');
 const { getIO } = require('../socket/socket');
 const prisma = require('../config/db');
 const { checkSensorAlerts } = require('../services/alert.service');
@@ -13,9 +13,7 @@ const deviceCache = new Map();
 const resetAllDeviceStatus = async () => {
   try {
     console.log('🔄 Resetting all devices to offline on startup...');
-    await prisma.device.updateMany({
-      data: { isOnline: false }
-    });
+    await prisma.device.updateMany({ data: { isOnline: false } });
     deviceCache.clear();
   } catch (err) {
     console.error('Failed to reset device status:', err.message);
@@ -27,31 +25,29 @@ const resetAllDeviceStatus = async () => {
 // ─────────────────────────────────────────────
 const loadDeviceSensors = async (deviceId) => {
   const mappings = await prisma.deviceSensor.findMany({
-    where: {
-      device: { deviceId }
-    },
-    include: {
-      sensor: true,
-    },
+    where: { device: { deviceId } },
+    include: { sensor: true },
   });
-
   const sensorSet = new Set(mappings.map(m => m.sensor.name));
   sensorCache.set(deviceId, sensorSet);
-
   return sensorSet;
 };
 
 // ─────────────────────────────────────────────
 // Update device status
 // ─────────────────────────────────────────────
-const updateDeviceOnline = async (deviceId, isOnline) => {
+const updateDeviceOnline = async (deviceId, isOnline, netMode = null) => {
   try {
-    const cached = deviceCache.get(deviceId);
+    const cached = deviceCache.get(deviceId) || {};
     const now = Date.now();
+    const statusChanged = cached.isOnline !== isOnline;
 
-    const statusChanged = !cached || cached.isOnline !== isOnline;
-
-    deviceCache.set(deviceId, { lastUpdate: now, isOnline });
+    deviceCache.set(deviceId, {
+      ...cached,
+      lastUpdate: now,
+      isOnline,
+      netMode: netMode || cached.netMode
+    });
 
     await prisma.device.updateMany({
       where: { deviceId },
@@ -66,8 +62,6 @@ const updateDeviceOnline = async (deviceId, isOnline) => {
         isOnline ? 'DEVICE_ONLINE' : 'DEVICE_OFFLINE'
       );
     }
-
-    // console.log(`Device ${deviceId} → ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
   } catch (err) {
     console.error(`DB update failed for ${deviceId}:`, err.message);
   }
@@ -76,30 +70,18 @@ const updateDeviceOnline = async (deviceId, isOnline) => {
 // ─────────────────────────────────────────────
 // Log
 // ─────────────────────────────────────────────
-// ใน src/mqtt/mqtt.handler.js
-
 const logToDevice = async (deviceId, level, message, eventCode = 'GENERIC', meta = null) => {
   try {
-    const device = await prisma.device.findUnique({
-      where: { deviceId },
-    });
-
+    const device = await prisma.device.findUnique({ where: { deviceId } });
     if (!device) return;
 
     const newLog = await prisma.deviceLog.create({
-      data: {
-        deviceId: device.id,
-        level,
-        eventCode,
-        message,
-        meta,
-      },
+      data: { deviceId: device.id, level, eventCode, message, meta },
     });
 
     const io = getIO();
     io.emit(`device:log:${deviceId}`, newLog);
     io.emit('device:log:all', { ...newLog, deviceName: device.name });
-
   } catch (err) {
     console.error(`DeviceLog write failed:`, err.message);
   }
@@ -109,11 +91,8 @@ const logToDevice = async (deviceId, level, message, eventCode = 'GENERIC', meta
 // HEARTBEAT MONITOR
 // ─────────────────────────────────────────────
 const startHeartbeatMonitor = () => {
-
   const syncCacheFromDB = async () => {
-    const onlineDevices = await prisma.device.findMany({
-      where: { isOnline: true }
-    });
+    const onlineDevices = await prisma.device.findMany({ where: { isOnline: true } });
     onlineDevices.forEach(d => {
       if (!deviceCache.has(d.deviceId)) {
         deviceCache.set(d.deviceId, { lastUpdate: Date.now(), isOnline: true });
@@ -125,32 +104,28 @@ const startHeartbeatMonitor = () => {
 
   setInterval(async () => {
     const now = Date.now();
-
     for (const [deviceId, cached] of deviceCache.entries()) {
-
       if (now - cached.lastUpdate > 60000 && cached.isOnline) {
-        await updateDeviceOnline(deviceId, false); 
-
+        await updateDeviceOnline(deviceId, false);
         const io = getIO();
         io.emit(`device:status:${deviceId}`, { deviceId, isOnline: false });
         io.emit('device:status:all', { deviceId, isOnline: false });
       }
     }
-
-  }, 30000); // check ทุก 30 วิ
+  }, 30000);
 };
 
 // ─────────────────────────────────────────────
 // MAIN HANDLER
 // ─────────────────────────────────────────────
 const handleMessages = async () => {
-
   await resetAllDeviceStatus();
   startHeartbeatMonitor();
 
   client.on('message', async (topic, message) => {
     const io = getIO();
 
+    // ───────── Data ─────────
     if (topic.startsWith('device/') && topic.endsWith('/data')) {
       const deviceId = topic.split('/')[1];
       let payload;
@@ -159,77 +134,83 @@ const handleMessages = async () => {
       } catch (err) { return; }
 
       const sensorsPayload = payload.sensors || {};
-      const netMode = payload.net_mode || 'N/A';
+      const netMode        = payload.net_mode || 'N/A';
 
-      // 1. บันทึกลง InfluxDB (วนลูปเก็บตามมาตรฐานเดิม)
+      // ── FIX 1: คำนวณ IS_REALTIME ก่อนใช้ ───────────────────────────────
+      let hardwareTs = Number(payload.ts);
+      if (hardwareTs < 1000000000000) hardwareTs = hardwareTs * 1000;
+
+      if (!hardwareTs || hardwareTs < 1000000000000) {
+        console.error("Invalid Timestamp received:", hardwareTs);
+        return;
+      }
+
+      const now        = Date.now();
+      const timeDiff   = Math.abs(now - hardwareTs);
+      const IS_REALTIME = timeDiff < 30000;   // ← declare ก่อนใช้
+
+      // ── FIX 2: อ่าน cached จาก deviceCache ก่อนใช้ ──────────────────────
+      const cached = deviceCache.get(deviceId) || {};
+
+      // ตรวจ network switch เฉพาะ realtime และมี netMode เดิม
+      if (IS_REALTIME && cached.netMode && cached.netMode !== netMode) {
+        await logToDevice(
+          deviceId,
+          'INFO',
+          `Network switched from ${cached.netMode} to ${netMode}`,
+          'NETWORK_SWITCH',
+          { from: cached.netMode, to: netMode }
+        );
+      }
+
+      // โหลด sensor mapping ถ้ายังไม่มี
       let sensors = sensorCache.get(deviceId);
       if (!sensors) sensors = await loadDeviceSensors(deviceId);
-      
-      let hardwareTs = Number(payload.ts);
 
-      // ถ้าเป็น seconds → แปลงเป็น ms
-      if (hardwareTs < 1000000000000) {
-        hardwareTs = hardwareTs * 1000;
-      }
-
-      if (!hardwareTs || hardwareTs < 1000000000000) { 
-        console.error("Invalid Timestamp received:", hardwareTs);
-        return; 
-      }
-
+      // เขียน InfluxDB ทุก record (realtime + backlog)
       for (const [sensorName, value] of Object.entries(sensorsPayload)) {
         if (!sensors.has(sensorName)) continue;
-
         const numValue = parseFloat(value);
-        if (isNaN(numValue)) {
-          continue; 
-        }
+        if (isNaN(numValue)) continue;
 
         const point = new Point('sensor_reading')
           .tag('device_id', deviceId)
           .tag('sensor', sensorName)
-          .floatField('value', parseFloat(value))
-          .timestamp(new Date(hardwareTs)); 
+          .floatField('value', numValue)
+          .timestamp(new Date(hardwareTs));
 
         writeApi.writePoint(point);
       }
 
-      // 2. ⚡️ ส่ง Real-time แบบ "มัดรวม" (เหมาะกับ Dashboard มากกว่า)
-      const deviceUpdate = {
-        deviceId,
-        sensors: sensorsPayload, // ส่งไปทั้งก้อน { temp: 25, humi: 60 }
-        net_mode: netMode,
-        ts: hardwareTs,
-        isOnline: true, // ส่งข้อมูลมาแปลว่ายัง Online
-        lastUpdate: new Date()
-      };
+      if (IS_REALTIME) {
+        const deviceUpdate = {
+          deviceId,
+          sensors: sensorsPayload,
+          net_mode: netMode,
+          ts: hardwareTs,
+          isOnline: true,
+          lastUpdate: new Date()
+        };
 
-      // console.log(`MQTT Data Received: ${deviceId} →`, deviceUpdate);
+        io.emit('device:update:all', deviceUpdate);
+        io.emit(`device:update:${deviceId}`, deviceUpdate);
 
-      // สำหรับหน้า Dashboard รวม (ทุกคนเห็นเหมือนกัน)
-      io.emit('device:update:all', deviceUpdate);
-
-      // สำหรับหน้าเจาะจงรายเครื่อง (Frontend ฟังเฉพาะ id ตัวเอง)
-      io.emit(`device:update:${deviceId}`, deviceUpdate);
-
-      checkSensorAlerts(deviceId, sensorsPayload).catch(err => console.error(err));
-
-      await updateDeviceOnline(deviceId, true);
+        checkSensorAlerts(deviceId, sensorsPayload).catch(err => console.error(err));
+        await updateDeviceOnline(deviceId, true, netMode);
+      }
+      // backlog → InfluxDB เท่านั้น (ไม่ emit socket, ไม่ update online status)
     }
 
-    // ───────── สถานะ Online/Offline ─────────
+    // ───────── Online / Offline Status ─────────
     else if (topic.startsWith('device/') && topic.endsWith('/status')) {
       const deviceId = topic.split('/')[1];
       const isOnline = message.toString() === 'online';
 
       const statusUpdate = { deviceId, isOnline, timestamp: new Date() };
-
-      // แจ้งเตือนสถานะเปลี่ยนไปที่หน้า Dashboard
       io.emit('device:status:all', statusUpdate);
       io.emit(`device:status:${deviceId}`, statusUpdate);
 
       await updateDeviceOnline(deviceId, isOnline);
-
       await logToDevice(
         deviceId,
         isOnline ? 'INFO' : 'WARN',
@@ -238,7 +219,6 @@ const handleMessages = async () => {
       );
     }
   });
-
 };
 
 module.exports = { handleMessages };
