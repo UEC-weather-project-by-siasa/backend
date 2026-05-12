@@ -365,10 +365,32 @@ const getLatestPredictionsForAllDevices = async () => {
   return latestPredictions.filter(p => p !== null);
 };
 
+const cleanupOldPredictions = async () => {
+  try {
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+    const deleted = await prisma.weatherPrediction.deleteMany({
+      where: {
+        createdAt: {
+          lt: fourteenDaysAgo, // lt = less than (น้อยกว่า/เก่ากว่า)
+        },
+      },
+    });
+
+    console.log(`[Cleanup] Deleted ${deleted.count} old weather predictions.`);
+    return deleted.count;
+  } catch (error) {
+    console.error('[Cleanup Error]:', error.message);
+    return 0;
+  }
+};
+
 module.exports = { 
   runBulkWeatherPredictionByAIModel, 
   askWeatherAI,
   getAiLogs,
   deleteAiLogs,
-  getLatestPredictionsForAllDevices
+  getLatestPredictionsForAllDevices,
+  cleanupOldPredictions
 };
